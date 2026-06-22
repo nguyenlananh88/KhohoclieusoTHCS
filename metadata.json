@@ -1,0 +1,6 @@
+{
+  "name": "EduShop AI",
+  "description": "Nền tảng thương mại học liệu số thông minh, tích hợp trợ lý soạn giáo án AI và quản lý học liệu GDPT 2018",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
