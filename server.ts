@@ -70,18 +70,18 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 import { createClient } from "@supabase/supabase-js";
 
 // Supabase Configuration
-let SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://mjuwgdknrajqqaquarfl.supabase.co";
-if (SUPABASE_URL === "https://ndqnclzvlbodtjlmgcdz.supabase.co") {
-  SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://mjuwgdknrajqqaquarfl.supabase.co";
-  if (SUPABASE_URL === "https://ndqnclzvlbodtjlmgcdz.supabase.co") {
-    SUPABASE_URL = "https://mjuwgdknrajqqaquarfl.supabase.co";
+let SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://fslabxwcyljiqvfjkfzk.supabase.co";
+if (SUPABASE_URL === "https://ndqnclzvlbodtjlmgcdz.supabase.co" || SUPABASE_URL === "https://mjuwgdknrajqqaquarfl.supabase.co") {
+  SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://fslabxwcyljiqvfjkfzk.supabase.co";
+  if (SUPABASE_URL === "https://ndqnclzvlbodtjlmgcdz.supabase.co" || SUPABASE_URL === "https://mjuwgdknrajqqaquarfl.supabase.co") {
+    SUPABASE_URL = "https://fslabxwcyljiqvfjkfzk.supabase.co";
   }
 }
 
-let SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qdXdnZGtucmFqcXFhcXVhcmZsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU3NzUzNCwiZXhwIjoyMDk3MTUzNTM0fQ.jufGjL00D6P89KC2o_DC3cm8wl2-W_ZfBcKkrJMZ-Xs";
+let SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzbGFieHdjeWxqaXF2ZmprZnprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjEzNDg3MSwiZXhwIjoyMDk3NzEwODcxfQ.heBq8sC-Pdrf5J36YuJBPQnZcIjULixs1tfjcAFv-vQ";
 
-if (SUPABASE_URL.includes("mjuwgdknrajqqaquarfl")) {
-  SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qdXdnZGtucmFqcXFhcXVhcmZsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU3NzUzNCwiZXhwIjoyMDk3MTUzNTM0fQ.jufGjL00D6P89KC2o_DC3cm8wl2-W_ZfBcKkrJMZ-Xs";
+if (SUPABASE_URL.includes("fslabxwcyljiqvfjkfzk")) {
+  SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzbGFieHdjeWxqaXF2ZmprZnprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjEzNDg3MSwiZXhwIjoyMDk3NzEwODcxfQ.heBq8sC-Pdrf5J36YuJBPQnZcIjULixs1tfjcAFv-vQ";
 } else {
   SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || SUPABASE_KEY;
 }
