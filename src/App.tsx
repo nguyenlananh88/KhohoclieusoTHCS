@@ -4,10 +4,11 @@ import {
   Video, FileText, Brain, Award, Trash, Plus, Check, Loader2, Menu, X, 
   ChevronRight, Flame, Clock, Gift, User, Star, BookMarked, RefreshCw, 
   Send, HelpCircle, Layout, BookOpenCheck, ChevronDown, Info, CheckCircle, 
-  Lock, Heart, Shield, Landmark, Copy, QrCode, LogOut, Edit2, UploadCloud, Link, Image
+  Lock, Heart, Shield, Landmark, Copy, QrCode, LogOut, Edit2, UploadCloud, Link, Image, Key, AlertCircle,
+  Home, Gamepad2
 } from "lucide-react";
 
-import { Product, Initiative } from "./types";
+import { Product, Initiative, Order, Feedback } from "./types";
 import AdminDashboard from "./components/AdminDashboard";
 import AIPictureGame from "./components/AIPictureGame";
 import AISoanGiaoAn from "./components/AISoanGiaoAn";
@@ -39,6 +40,10 @@ export default function App() {
   const [showCartModal, setShowCartModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   
+  // Shared Admin States
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  
   // States for Learning Resources filter (Kho học liệu)
   const [subjects, setSubjects] = useState<string[]>(["Tin học", "Hoạt động trải nghiệm"]);
   const [showSubjectManager, setShowSubjectManager] = useState(false);
@@ -68,6 +73,9 @@ export default function App() {
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
+  const [buyerBankName, setBuyerBankName] = useState("");
+  const [buyerBankAccount, setBuyerBankAccount] = useState("");
+  const [buyerBankAccountName, setBuyerBankAccountName] = useState("");
   const [orderCreatedId, setOrderCreatedId] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<"form" | "payment">("form");
 
@@ -101,11 +109,297 @@ export default function App() {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Banner Settings State
+  const [bannerSettings, setBannerSettings] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("backup_banner");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (_) {}
+      }
+    }
+    return {
+      backgroundImage: "",
+      badgeText: "Hệ thống tiên phong tích hợp AI số hóa giáo dục",
+      title1: "Giải Pháp Học Liệu Số",
+      title2: "Thời Đại Công Nghệ Giáo Dục 4.0",
+      description: "Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản GDPT 2018 lý tưởng cho bộ môn Tin Học & Hoạt Động Trải Nghiệm.",
+      adminPanel1Title: "Cổng Quản Trị Hệ Thống EduShop AI",
+      adminPanel1Desc: "Bảng kiểm soát tích hợp: Đăng tải trực tiếp file học liệu, sáng kiến thực tiễn, trò chơi học tập tương tác bám sát chuẩn GDPT 2018 và đồng bộ hóa danh mục môn học.",
+      adminPanel2Title: "Hệ Thống Phân Quyền Quản Trị Chặt Chẽ",
+      adminPanel2Desc: "Thầy cô Admin: admin • Cấu hình trực tuyến thời gian thực các học liệu GDPT 2018.",
+      adminPanel3Title: "QUẢN LÝ BÁN HÀNG"
+    };
+  });
+
+  const loadBannerSettings = async () => {
+    try {
+      const res = await fetch("/api/banner");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === "object") {
+          setBannerSettings(data);
+          try {
+            localStorage.setItem("backup_banner", JSON.stringify(data));
+          } catch (storageError) {
+            console.warn("Storage quota exceeded for backup_banner, attempting to prune large background image...");
+            try {
+              // Try pruning the potentially massive base64 backgroundImage to keep other settings backed up
+              const prunedData = { ...data, backgroundImage: "" };
+              localStorage.setItem("backup_banner", JSON.stringify(prunedData));
+            } catch (innerError) {
+              console.error("Failed to save even pruned backup_banner to localStorage:", innerError);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Lỗi nạp cấu hình banner:", err);
+    }
+  };
+
+  const [bankSettings, setBankSettings] = useState<any>({
+    bankName: "Vietinbank",
+    accountNumber: "10987654321",
+    accountHolder: "EDUSHOP AI VIETNAM",
+    memoTemplate: "EDUSHOP {orderId}",
+    isEnabled: false
+  });
+
+  const loadBankSettings = async () => {
+    try {
+      const res = await fetch("/api/bank");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === "object") {
+          setBankSettings(data);
+        }
+      }
+    } catch (err) {
+      console.error("Lỗi nạp cấu hình ngân hàng:", err);
+    }
+  };
+
+  const loadOrders = async () => {
+    try {
+      const res = await fetch("/api/admin/orders", {
+        headers: { "Authorization": `Bearer admin-secret-token` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error("Lỗi nạp danh sách đơn hàng:", err);
+    }
+  };
+
+  const loadFeedbacks = async () => {
+    try {
+      const res = await fetch("/api/admin/feedbacks", {
+        headers: { "Authorization": `Bearer admin-secret-token` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFeedbacks(data);
+      }
+    } catch (err) {
+      console.error("Lỗi nạp danh sách góp ý:", err);
+    }
+  };
+
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
+  };
+
+  // State & Handler for Editing Panel 1 (Cổng quản trị)
+  const [showPanel1Modal, setShowPanel1Modal] = useState(false);
+  const [panel1Title, setPanel1Title] = useState("");
+  const [panel1Desc, setPanel1Desc] = useState("");
+  const [savingPanel1, setSavingPanel1] = useState(false);
+
+  const handleSavePanel1 = async () => {
+    if (!panel1Title.trim()) {
+      showToast("⚠️ Vui lòng nhập tiêu đề cổng quản trị!");
+      return;
+    }
+    setSavingPanel1(true);
+    try {
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          ...bannerSettings,
+          adminPanel1Title: panel1Title,
+          adminPanel1Desc: panel1Desc
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Cập nhật cổng quản trị thành công!");
+        setShowPanel1Modal(false);
+        loadBannerSettings();
+      } else {
+        const err = await res.json();
+        showToast(`❌ Lỗi lưu thông tin: ${err.error || "Không rõ"}`);
+      }
+    } catch (err: any) {
+      console.error("Lỗi lưu thông tin cổng quản trị:", err);
+      showToast("❌ Không kết nối được đến máy chủ.");
+    } finally {
+      setSavingPanel1(false);
+    }
+  };
+
+  // Controlled Admin SubTab state
+  const [adminSubTab, setAdminSubTab] = useState<"dashboard" | "products" | "orders" | "feedbacks" | "settings">("dashboard");
+
+  // Banner Settings Form State
+  const [showBannerModal, setShowBannerModal] = useState(false);
+  const [bannerBgType, setBannerBgType] = useState<"upload" | "url">("url");
+  const [bannerBgUrl, setBannerBgUrl] = useState("");
+  const [bannerBadge, setBannerBadge] = useState("");
+  const [bannerTitle1, setBannerTitle1] = useState("");
+  const [bannerTitle2, setBannerTitle2] = useState("");
+  const [bannerDesc, setBannerDesc] = useState("");
+  const [savingBanner, setSavingBanner] = useState(false);
+  const [dbStatus, setDbStatus] = useState<any>(null);
+
+  // Promotion Settings Form State
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [promoBadge, setPromoBadge] = useState("");
+  const [promoTitle1, setPromoTitle1] = useState("");
+  const [promoTitle2, setPromoTitle2] = useState("");
+  const [promoDesc, setPromoDesc] = useState("");
+  const [promoFoot, setPromoFoot] = useState("");
+  const [promoBtn, setPromoBtn] = useState("");
+  const [promoEnabled, setPromoEnabled] = useState(true);
+  const [savingPromo, setSavingPromo] = useState(false);
+
+  const fetchDbStatus = async () => {
+    try {
+      const res = await fetch("/api/db-status");
+      if (res.ok) {
+        const data = await res.json();
+        setDbStatus(data);
+      }
+    } catch (e) {
+      console.error("Lỗi đồng bộ Supabase:", e);
+    }
+  };
+
+  const openPromoSettings = () => {
+    const current = bannerSettings || {};
+    setPromoBadge(current.promoBadge || "SIÊU ƯU ĐÃI GIỚI HẠN");
+    setPromoTitle1(current.promoTitle1 || "BÙNG NỔ KHUYẾN MẠI");
+    setPromoTitle2(current.promoTitle2 || "GIẢM GIÁ 50%");
+    setPromoDesc(current.promoDesc || "Áp dụng cho toàn bộ học liệu điện tử PowerPoint, giáo án Word môn Tin học, HĐTN và kho trò chơi tương tác số học tương tác AI!");
+    setPromoFoot(current.promoFoot || "Áp dụng tự động hôm nay");
+    setPromoBtn(current.promoBtn || "MỞ KHO HỌC LIỆU NGAY");
+    setPromoEnabled(current.promoEnabled !== false);
+    setShowPromoModal(true);
+  };
+
+  const handleSavePromo = async () => {
+    if (!promoTitle1.trim() || !promoTitle2.trim()) {
+      showToast("⚠️ Vui lòng nhập tiêu đề khuyến mãi!");
+      return;
+    }
+    setSavingPromo(true);
+    try {
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          ...bannerSettings,
+          promoBadge,
+          promoTitle1,
+          promoTitle2,
+          promoDesc,
+          promoFoot,
+          promoBtn,
+          promoEnabled
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Cập nhật thông tin khuyến mãi thành công!");
+        setShowPromoModal(false);
+        loadBannerSettings();
+      } else {
+        const err = await res.json();
+        showToast(`❌ Lỗi lưu khuyến mãi: ${err.error || "Không rõ"}`);
+      }
+    } catch (err: any) {
+      console.error("Lỗi lưu khuyến mãi:", err);
+      showToast("❌ Không kết nối được đến máy chủ.");
+    } finally {
+      setSavingPromo(false);
+    }
+  };
+
+  const openBannerSettings = () => {
+    const current = bannerSettings || {
+      backgroundImage: "",
+      badgeText: "Hệ thống tiên phong tích hợp AI số hóa giáo dục",
+      title1: "Giải Pháp Học Liệu Số",
+      title2: "Thời Đại Công Nghệ Giáo Dục 4.0",
+      description: "Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản GDPT 2018 lý tưởng cho bộ môn Tin Học & Hoạt Động Trải Nghiệm."
+    };
+    setBannerBgUrl(current.backgroundImage || "");
+    setBannerBgType(current.backgroundImage?.startsWith("data:") ? "upload" : "url");
+    setBannerBadge(current.badgeText || "");
+    setBannerTitle1(current.title1 || "");
+    setBannerTitle2(current.title2 || "");
+    setBannerDesc(current.description || "");
+    setShowBannerModal(true);
+  };
+
+  const handleSaveBanner = async () => {
+    if (!bannerTitle1.trim()) {
+      showToast("⚠️ Vui lòng nhập tiêu đề chính phần 1!");
+      return;
+    }
+    setSavingBanner(true);
+    try {
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          ...bannerSettings,
+          backgroundImage: bannerBgUrl,
+          badgeText: bannerBadge,
+          title1: bannerTitle1,
+          title2: bannerTitle2,
+          description: bannerDesc
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Cập nhật cấu hình banner thành công!");
+        setShowBannerModal(false);
+        loadBannerSettings();
+      } else {
+        const err = await res.json();
+        showToast(`❌ Lỗi lưu banner: ${err.error || "Không rõ"}`);
+      }
+    } catch (err: any) {
+      console.error("Lỗi lưu banner:", err);
+      showToast("❌ Không kết nối được đến máy chủ.");
+    } finally {
+      setSavingBanner(false);
+    }
   };
 
   // FETCH PRODUCTS AND INITIATIVES FROM EXPRESS BACKEND
@@ -285,6 +579,9 @@ export default function App() {
     loadInitiatives();
     loadGames();
     loadSubjects();
+    loadBannerSettings();
+    loadBankSettings();
+    fetchDbStatus();
   }, []);
 
   const handleAddSubject = async (e: React.FormEvent) => {
@@ -350,10 +647,23 @@ export default function App() {
       setShowPromoPopup(false);
       return;
     }
+    const isEnabled = bannerSettings?.promoEnabled !== false && bannerSettings?.promoEnabled !== "false";
+    if (!isEnabled) {
+      setShowPromoPopup(false);
+      return;
+    }
     const promoTimer = setTimeout(() => {
       setShowPromoPopup(true);
     }, 5000); // Trigger after 5 seconds
     return () => clearTimeout(promoTimer);
+  }, [isAdmin, bannerSettings?.promoEnabled]);
+
+  // Load orders and feedbacks when admin is logged in
+  useEffect(() => {
+    if (isAdmin) {
+      loadOrders();
+      loadFeedbacks();
+    }
   }, [isAdmin]);
 
   // Quick navigation helpers from Sidebar
@@ -424,13 +734,23 @@ export default function App() {
   const triggerDownload = (product: any) => {
     if (!product) return;
     if (product.isPaid) {
-      setPaymentGameItem(product);
-      setGameBuyerName("");
-      setGameBuyerPhone("");
-      setGameBuyerEmail("");
-      setGamePaymentStatus("pending");
-      setShowGamePaymentModal(true);
-      showToast("💳 Học liệu có phí bản quyền. Vui lòng thanh toán để tải tệp kịch bản!");
+      const mappedProduct = {
+        ...product,
+        id: product.id,
+        title: product.title,
+        price: product.salePrice || product.price || 0,
+        originalPrice: product.price || 0,
+        description: product.desc || product.description,
+        subject: product.subject || product.category || "Tin học AI",
+        grade: product.grade || null,
+        type: product.type || "Trò chơi học tập",
+        rating: 5.0,
+        image: product.image || "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=500&auto=format&fit=crop&q=60",
+        fileName: product.fileName,
+        fileData: product.fileData
+      };
+      setSelectedDetailProduct(mappedProduct);
+      showToast("💳 Học liệu có phí bản quyền. Vui lòng đặt mua để tải tệp bản quyền!");
       return;
     }
     executeDirectDownload(product);
@@ -485,6 +805,9 @@ export default function App() {
       buyerName,
       buyerEmail,
       buyerPhone,
+      buyerBankName,
+      buyerBankAccount,
+      buyerBankAccountName,
       cartItems: cart,
       totalAmount: cart.reduce((sum, item) => sum + item.price, 0)
     };
@@ -514,6 +837,9 @@ export default function App() {
     setShowCheckoutForm(false);
     setOrderCreatedId(null);
     setCheckoutStep("form");
+    setBuyerBankName("");
+    setBuyerBankAccount("");
+    setBuyerBankAccountName("");
     showToast("🎉 Chuyển khoản hoàn tất! Ban quản trị sẽ rà soát và phê duyệt tải file ngay tức thì về email của thầy cô.");
   };
 
@@ -1152,28 +1478,53 @@ export default function App() {
       )}
 
       {/* ==================== 1. HERO BANNER (Top of the page) ==================== */}
-      <section className="relative bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-900 text-white overflow-hidden py-10 sm:py-14 px-4 border-b border-indigo-950">
+      <section 
+        className="relative bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-900 text-white overflow-hidden py-10 sm:py-14 px-4 border-b border-indigo-950 mb-3"
+        style={bannerSettings.backgroundImage ? {
+          backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.88), rgba(30, 27, 75, 0.93)), url(${bannerSettings.backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        } : undefined}
+      >
         <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500 rounded-full filter blur-3xl opacity-15 -mr-16 -mt-16"></div>
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-500 rounded-full filter blur-3xl opacity-10 -ml-16 -mb-16"></div>
         
-        <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="text-left space-y-4 max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 px-3.5 py-1 rounded-full text-[10px] sm:text-xs font-bold border border-indigo-500/30">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Hệ thống tiên phong tích hợp AI số hóa giáo dục
+        <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-10 w-full">
+          <div className="text-left space-y-4 flex-1 md:max-w-3xl lg:max-w-4xl xl:max-w-5xl relative group/banner">
+            <div 
+              onClick={isAdmin ? openBannerSettings : undefined}
+              className={`inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 px-3.5 py-1 rounded-full text-[10px] sm:text-xs font-bold border border-indigo-500/30 ${isAdmin ? "cursor-pointer hover:bg-indigo-500/35 transition-all" : ""}`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> 
+              <span>{bannerSettings.badgeText}</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight tracking-tight">
-              Giải Pháp Học Liệu Số <br />
-              <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-amber-300 bg-clip-text text-transparent">
-                Thời Đại Công Nghệ Giáo Dục 4.0
+
+            <h1 
+              onClick={isAdmin ? openBannerSettings : undefined}
+              className={`font-black leading-tight tracking-tight flex flex-col gap-2 sm:gap-3 ${isAdmin ? "cursor-pointer hover:opacity-90 transition-all" : ""}`}
+            >
+              <span className="text-3xl sm:text-4xl md:text-5xl lg:text-[4rem] xl:text-[4.5rem] text-white drop-shadow-md font-black flex items-center gap-2.5 flex-wrap">
+                <span>{bannerSettings.title1}</span>
+              </span>
+              <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-amber-300 bg-clip-text text-transparent whitespace-nowrap block text-[6.2vw] xs:text-[6vw] sm:text-[5.4vw] md:text-[2.6vw] lg:text-[2.8vw] xl:text-[3vw] 2xl:text-5xl">
+                {bannerSettings.title2}
               </span>
             </h1>
-            <p className="text-slate-300 text-xs sm:text-sm font-medium max-w-xl leading-relaxed">
-              Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản <strong>GDPT 2018</strong> lý tưởng cho bộ môn <strong>Tin Học</strong> & <strong>Hoạt Động Trải Nghiệm</strong>.
-            </p>
+
+            <div 
+              onClick={isAdmin ? openBannerSettings : undefined}
+              className={`relative ${isAdmin ? "cursor-pointer hover:bg-white/5 p-2 -m-2 rounded-xl border border-transparent hover:border-white/10 transition-all" : ""}`}
+            >
+              <p 
+                className="text-slate-300 text-xs sm:text-sm font-medium max-w-2xl leading-relaxed whitespace-pre-line"
+                dangerouslySetInnerHTML={{ __html: bannerSettings.description }}
+              />
+            </div>
           </div>
 
           {/* Quick Search inside Hero Banner */}
-          <div className="w-full md:w-80 lg:w-96 bg-white/5 backdrop-blur-md p-5 rounded-3xl border border-white/10 shadow-xl space-y-3">
+          <div className="w-full md:w-64 lg:w-72 xl:w-80 bg-white/5 backdrop-blur-md p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-white/10 shadow-xl space-y-3 shrink-0 self-center">
             <h4 className="text-[10px] font-black text-amber-300 uppercase tracking-wider text-left flex items-center gap-1.5 leading-none">
               <Search className="w-4 h-4" /> Tìm kiếm học liệu nhanh
             </h4>
@@ -1204,102 +1555,113 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {isAdmin && (
+          <button
+            onClick={openBannerSettings}
+            className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 px-3 py-1.5 rounded-full shadow-lg border border-amber-400 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 font-black text-[10px] sm:text-xs z-20 hover:shadow-amber-500/20"
+            title="Chỉnh sửa nội dung Banner"
+          >
+            <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>Chỉnh sửa Banner</span>
+          </button>
+        )}
       </section>
 
       {/* ==================== 2. NAVBAR (Menu nằm ngang) ==================== */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-sm">
+      <header className="sticky top-0 z-40 bg-gradient-to-r from-[#001c54]/85 via-[#002060]/85 to-[#002d8a]/85 backdrop-blur-md border-b border-white/10 shadow-lg text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-16 w-full">
             
-            {/* Logo Left */}
-            <div className="flex items-center gap-2 cursor-pointer text-left" onClick={() => setActiveTab("trang-chu")}>
-              <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2 rounded-xl text-white shadow-sm">
-                <Brain className="w-5 h-5 animate-pulse" />
+            {/* Logo & Navigation Buttons Group (Left aligned) */}
+            <div className="flex items-center h-16 gap-3 lg:gap-5 flex-grow">
+              {/* Logo Left */}
+              <div className="flex items-center gap-2 cursor-pointer text-left flex-shrink-0" onClick={() => setActiveTab("trang-chu")}>
+                <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2 rounded-xl text-white shadow-sm flex items-center justify-center">
+                  <Brain className="w-5 h-5 animate-pulse" />
+                </div>
+                <div className="leading-none text-left">
+                  <h1 className="text-base sm:text-lg font-black text-white tracking-tight leading-none">
+                    EDUSHOP AI
+                  </h1>
+                  <span className="text-[8px] font-black text-indigo-300 tracking-widest uppercase block mt-1 leading-none">HỌC LIỆU SỐ THÔNG MINH</span>
+                </div>
               </div>
-              <div className="leading-none">
-                <h1 className="text-base sm:text-lg font-black bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent tracking-tight">
-                  EDUSHOP AI
-                </h1>
-                <span className="text-[8px] font-black text-indigo-500 tracking-widest uppercase">HỌC LIỆU SỐ THÔNG MINH</span>
+
+              {/* Desktop Horizontal Navbar (Aligned next to Logo with left-border) */}
+              <div className="hidden md:flex items-center h-16 bg-transparent p-0 rounded-none overflow-visible border-l border-white/10 pl-3 lg:pl-5">
+                <button 
+                  onClick={() => setActiveTab("trang-chu")}
+                  className={`px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer relative border-r border-white/10 flex flex-col items-center justify-center text-center ${activeTab === "trang-chu" ? "bg-[#1e70ff] text-white" : "bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white"}`}
+                >
+                  <Home className="w-3.5 h-3.5 mb-1 text-sky-400 flex-shrink-0" />
+                  <span>Trang Chủ</span>
+                </button>
+                <button 
+                  onClick={() => { setActiveTab("kho-hoc-lieu"); setSelectedSubject("Tất cả"); }}
+                  className={`px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer relative border-r border-white/10 flex flex-col items-center justify-center text-center ${activeTab === "kho-hoc-lieu" ? "bg-[#1e70ff] text-white" : "bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white"}`}
+                >
+                  <BookOpen className="w-3.5 h-3.5 mb-1 text-emerald-400 flex-shrink-0" />
+                  <span>Kho Học Liệu</span>
+                </button>
+                <button 
+                  onClick={() => { setActiveTab("kho-tro-choi-ai"); setGameStep("intro"); }}
+                  className={`px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer relative border-r border-white/10 flex flex-col items-center justify-center text-center ${activeTab === "kho-tro-choi-ai" ? "bg-[#1e70ff] text-white" : "bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white"}`}
+                >
+                  <Gamepad2 className="w-3.5 h-3.5 mb-1 text-indigo-400 flex-shrink-0" />
+                  <span>Trò Chơi AI</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab("sang-kien-kinh-nghiem")}
+                  className={`px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer relative border-r border-white/10 flex flex-col items-center justify-center text-center leading-tight ${activeTab === "sang-kien-kinh-nghiem" ? "bg-[#1e70ff] text-white" : "bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white"}`}
+                >
+                  <Award className="w-3.5 h-3.5 mb-1 text-purple-400 flex-shrink-0" />
+                  <span className="whitespace-nowrap">Sáng Kiến Kinh Nghiệm</span>
+                </button>
+
+                {/* Highlighted feature tool: AI Assistant */}
+                <button 
+                  onClick={() => setActiveTab("soan-giao-an-ai")}
+                  className={`px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 flex flex-col items-center justify-center gap-1 cursor-pointer border-r border-white/10 relative text-white ${activeTab === "soan-giao-an-ai" ? "bg-[#1e70ff]" : "bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white"}`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse flex-shrink-0" /> 
+                  <span className="whitespace-nowrap">Soạn Giáo Án AI</span>
+                </button>
+
+                {/* Admin Management System Button */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setActiveTab("admin-dashboard")}
+                    className={`px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border-r border-white/10 relative flex flex-col items-center justify-center text-center gap-1 text-white ${activeTab === "admin-dashboard" ? "bg-[#1e70ff]" : "bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white"}`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> 
+                    <span className="whitespace-nowrap">Quản trị hệ thống</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Desktop Horizontal Navbar */}
-            <nav className="hidden md:flex items-center gap-0.5">
-              <button 
-                onClick={() => setActiveTab("trang-chu")}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "trang-chu" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"}`}
-              >
-                Trang Chủ
-              </button>
-              <button 
-                onClick={() => { setActiveTab("kho-hoc-lieu"); setSelectedSubject("Tất cả"); }}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "kho-hoc-lieu" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"}`}
-              >
-                Kho Học Liệu
-              </button>
-              <button 
-                onClick={() => { setActiveTab("kho-tro-choi-ai"); setGameStep("intro"); }}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "kho-tro-choi-ai" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"}`}
-              >
-                Trò Chơi AI
-              </button>
-              <button 
-                onClick={() => setActiveTab("sang-kien-kinh-nghiem")}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "sang-kien-kinh-nghiem" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"}`}
-              >
-                Sáng Kiến Kinh Nghiệm
-              </button>
-              <button 
-                onClick={() => setActiveTab("soan-giao-an-ai")}
-                className={`px-3 py-2 rounded-xl text-xs font-black transition-all bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm hover:opacity-95 flex items-center gap-1 ml-1 cursor-pointer`}
-              >
-                <Sparkles className="w-3.5 h-3.5" /> Soạn Giáo Án AI
-              </button>
-
-              {isAdmin && (
-                <button
-                  onClick={() => setActiveTab("admin-dashboard")}
-                  className="px-3.5 py-2.5 rounded-xl text-xs font-black bg-slate-900 text-white flex items-center gap-1.5 ml-2 cursor-pointer animate-pulse"
-                >
-                  <Shield className="w-4 h-4 text-amber-400" /> Quản trị Admin
-                </button>
-              )}
-            </nav>
-
-            {/* Right Side Tools & Cart (Phân quyền Login) */}
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setShowMobileSidebar(!showMobileSidebar)}
-                className="md:hidden bg-slate-100 hover:bg-slate-200 p-2 rounded-xl text-slate-700 transition-all cursor-pointer"
-                title="Mở bảng phân quyền menu dọc"
-              >
-                <Menu className="w-4.5 h-4.5" />
-              </button>
-
-              {/* Log/Admin Access icon / Logout */}
+            {/* Desktop Horizontal Actions (Right aligned) */}
+            <div className="hidden md:flex items-center h-16 bg-transparent p-0 rounded-none overflow-visible flex-shrink-0">
+              {/* Authentication controls */}
               {!isAdmin ? (
                 <button
                   onClick={() => setActiveTab("admin-dashboard")}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer pr-3.5"
+                  className="bg-transparent text-slate-100 hover:bg-[#002d8a] hover:text-white px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border-r border-white/10 relative flex flex-col items-center justify-center gap-1"
                   title="Cổng đăng nhập hệ thống"
                 >
-                  <Lock className="w-4 h-4 text-slate-500" />
-                  <span className="hidden sm:inline">Đăng nhập</span>
+                  <Lock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                  <span className="whitespace-nowrap">Đăng nhập</span>
                 </button>
               ) : (
-                <div className="flex items-center gap-1.5 animate-fade-in">
-                  <div className="hidden lg:flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 text-left">
-                    <Shield className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
-                    <span className="text-[10px] font-black text-indigo-600 uppercase">Quyền Admin</span>
-                  </div>
+                <div className="flex items-center h-16 border-r border-white/10">
                   <button
                     onClick={handleAdminLogout}
-                    className="bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 p-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer"
+                    className="bg-transparent hover:bg-red-700/50 text-white px-3 lg:px-4 h-16 rounded-none text-[9px] lg:text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-1.5 relative"
                     title="Đăng xuất tài khoản Admin"
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span className="hidden sm:inline">Đăng xuất</span>
+                    <LogOut className="w-3.5 h-3.5 text-red-350 flex-shrink-0" />
+                    <span className="whitespace-nowrap">Đăng xuất</span>
                   </button>
                 </div>
               )}
@@ -1307,14 +1669,42 @@ export default function App() {
               {/* Shopping Cart Button */}
               <button 
                 onClick={() => setShowCartModal(true)}
-                className="relative bg-slate-950 text-white hover:bg-slate-900 p-2.5 rounded-xl transition-all cursor-pointer"
+                className="relative bg-transparent text-white hover:bg-[#002d8a] px-3.5 lg:px-5 h-16 rounded-none transition-all duration-200 flex flex-col items-center justify-center cursor-pointer text-[9px] lg:text-[10px] font-black uppercase tracking-wider gap-1.5"
+              >
+                <div className="relative">
+                  <ShoppingCart className="w-4 h-4 flex-shrink-0" />
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-none flex items-center justify-center border border-white animate-pulse">
+                      {cart.length}
+                    </span>
+                  )}
+                </div>
+                <span className="whitespace-nowrap">Giỏ hàng</span>
+              </button>
+            </div>
+
+            {/* Mobile Actions (Visible on small screens only) */}
+            <div className="flex md:hidden items-center gap-2">
+              {/* Shopping Cart Button */}
+              <button 
+                onClick={() => setShowCartModal(true)}
+                className="relative bg-white/10 hover:bg-white/20 text-white w-9 h-9 rounded-full transition-all cursor-pointer flex items-center justify-center border border-white/10"
               >
                 <ShoppingCart className="w-4 h-4" />
                 {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white animate-pulse">
                     {cart.length}
                   </span>
                 )}
+              </button>
+
+              {/* Mobile Sidebar Trigger */}
+              <button 
+                onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+                className="bg-white/10 hover:bg-white/20 p-2.5 rounded-full text-white transition-all cursor-pointer flex items-center justify-center border border-white/10"
+                title="Mở bảng phân quyền menu dọc"
+              >
+                <Menu className="w-4 h-4" />
               </button>
             </div>
 
@@ -1505,44 +1895,51 @@ export default function App() {
         <main className="flex-grow min-w-0">
 
           {/* Admin Tools Quick Control Center Bar */}
-          {isAdmin && (
-            <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 shadow-xl animate-fade-in text-left">
+          {isAdmin && activeTab === "admin-dashboard" && (
+            <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 sm:p-8 mb-8 flex flex-col gap-6 shadow-xl animate-fade-in text-left w-full">
               
-              {/* Left branding and meta */}
-              <div className="space-y-2 max-w-xl">
-                <div className="inline-flex items-center gap-1.5 bg-rose-500/10 text-rose-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-rose-500/20 shadow-sm">
-                  <Shield className="w-3.5 h-3.5 animate-pulse" /> Chế độ Quản trị viên kích hoạt
+              {/* Top part: Full-width Branding & Metadata */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+                <div className="space-y-1.5 flex-grow">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tight bg-gradient-to-r from-amber-400 to-rose-400 bg-clip-text text-transparent">
+                      {bannerSettings.adminPanel1Title || "Cổng Quản Trị Hệ Thống EduShop AI"}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-400 font-semibold leading-relaxed max-w-4xl">
+                    {bannerSettings.adminPanel1Desc || "Bảng kiểm soát tích hợp: Đăng tải trực tiếp file học liệu, sáng kiến thực tiễn, trò chơi học tập tương tác bám sát chuẩn GDPT 2018 và đồng bộ hóa danh mục môn học."}
+                  </p>
                 </div>
-                <h3 className="text-lg lg:text-xl font-black tracking-tight bg-gradient-to-r from-amber-400 to-rose-400 bg-clip-text text-transparent">
-                  Cổng Quản Trị Hệ Thống EduShop AI
-                </h3>
-                <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
-                  Bảng kiểm soát tích hợp: Đăng tải trực tiếp file học liệu, sáng kiến thực tiễn, trò chơi học tập tương tác bám sát chuẩn GDPT 2018 và đồng bộ hóa danh mục môn học.
-                </p>
+
+                <div className="shrink-0 self-start md:self-center">
+                  <div className="inline-flex items-center gap-1.5 bg-rose-500/10 text-rose-400 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-rose-500/20 shadow-sm">
+                    <Shield className="w-3.5 h-3.5 animate-pulse" /> Chế độ Quản trị viên kích hoạt
+                  </div>
+                </div>
               </div>
 
-              {/* Right structured control center */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shrink-0">
+              {/* Bottom part: Grid for Action Panels */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                 {/* Resource Posting Section */}
-                <div className="bg-slate-800/40 border border-slate-800 rounded-2xl p-3.5 flex flex-col gap-2">
-                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block font-mono">ĐỒNG BỘ ĐĂNG TẢI TÀI NGUYÊN</span>
-                  <div className="flex flex-wrap gap-2">
+                <div className="bg-slate-800/30 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3">
+                  <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block font-mono">ĐỒNG BỘ ĐĂNG TẢI TÀI NGUYÊN</span>
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={openCreateProduct}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2.5 rounded-xl text-[11px] transition-all flex items-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98"
                     >
                       <Plus className="w-3.5 h-3.5 text-emerald-100" /> Học liệu
                     </button>
                     <button
                       onClick={openCreateInit}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-2.5 rounded-xl text-[11px] transition-all flex items-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98"
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98"
                     >
                       <Plus className="w-3.5 h-3.5 text-indigo-250" /> Sáng kiến
                     </button>
                     <button
                       onClick={openCreateGame}
-                      className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3.5 py-2.5 rounded-xl text-[11px] transition-all flex items-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98"
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98"
                     >
                       <Plus className="w-3.5 h-3.5 text-purple-200" /> Trò chơi
                     </button>
@@ -1550,18 +1947,120 @@ export default function App() {
                 </div>
 
                 {/* System Configuration Section */}
-                <div className="bg-slate-800/40 border border-slate-800 rounded-2xl p-3.5 flex flex-col gap-2 justify-center">
-                  <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest block font-mono">CẤU HÌNH DANH MỤC</span>
-                  <div>
+                <div className="bg-slate-800/30 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3">
+                  <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block font-mono">CẤU HÌNH DANH MỤC & HỆ THỐNG</span>
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => setShowSubjectManager(true)}
-                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 border border-amber-300/40"
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 border border-amber-300/40"
                     >
-                      <BookOpen className="w-3.5 h-3.5 text-slate-950" /> Quản lý Môn học
+                      <BookOpen className="w-3.5 h-3.5 text-slate-950" /> Môn học
+                    </button>
+
+                    <button
+                      onClick={openBannerSettings}
+                      className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black py-3 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 border border-amber-300/40"
+                    >
+                      <Image className="w-3.5 h-3.5 text-slate-950" /> Banner
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveTab("admin-dashboard");
+                        setAdminSubTab(adminSubTab === "settings" ? "dashboard" : "settings");
+                      }}
+                      className={`font-black py-3 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 ${
+                        activeTab === "admin-dashboard" && adminSubTab === "settings"
+                          ? "bg-rose-600 hover:bg-rose-500 text-white"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white border border-slate-700"
+                      }`}
+                    >
+                      <Key className="w-3.5 h-3.5" /> Bảo mật
                     </button>
                   </div>
                 </div>
 
+              </div>
+
+              {/* Management Operations Section */}
+              <div className="bg-slate-800/30 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3 w-full">
+                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest block font-mono">
+                  {bannerSettings?.adminPanel3Title || "QUẢN LÝ BÁN HÀNG"}
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {/* 1. Tổng quan doanh thu */}
+                  <button
+                    onClick={() => {
+                      setActiveTab("admin-dashboard");
+                      setAdminSubTab("dashboard");
+                    }}
+                    className={`font-black py-3 px-1.5 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 ${
+                      activeTab === "admin-dashboard" && adminSubTab === "dashboard"
+                        ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white border border-sky-500 ring-2 ring-sky-400/40"
+                        : "bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20 hover:text-sky-300"
+                    }`}
+                  >
+                    📊 Doanh thu
+                  </button>
+
+                  {/* 2. Kho học liệu & Sáng kiến */}
+                  <button
+                    onClick={() => {
+                      setActiveTab("admin-dashboard");
+                      setAdminSubTab("products");
+                    }}
+                    className={`font-black py-3 px-1.5 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 ${
+                      activeTab === "admin-dashboard" && adminSubTab === "products"
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white border border-emerald-500 ring-2 ring-emerald-400/40"
+                        : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300"
+                    }`}
+                  >
+                    📂 Học liệu ({products.length + initiatives.length})
+                  </button>
+
+                  {/* 3. Duyệt hóa đơn */}
+                  <button
+                    onClick={() => {
+                      setActiveTab("admin-dashboard");
+                      setAdminSubTab("orders");
+                    }}
+                    className={`font-black py-3 px-1.5 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 relative ${
+                      activeTab === "admin-dashboard" && adminSubTab === "orders"
+                        ? "bg-gradient-to-r from-rose-500 to-pink-600 text-white border border-rose-500 ring-2 ring-rose-400/40"
+                        : "bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 hover:text-rose-300"
+                    }`}
+                  >
+                    🛒 Duyệt hóa đơn
+                    {orders.filter(o => o.status === "pending").length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
+                        {orders.filter(o => o.status === "pending").length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* 4. Góp ý & Phản hồi */}
+                  <button
+                    onClick={() => {
+                      setActiveTab("admin-dashboard");
+                      setAdminSubTab("feedbacks");
+                    }}
+                    className={`font-black py-3 px-1.5 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 ${
+                      activeTab === "admin-dashboard" && adminSubTab === "feedbacks"
+                        ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white border border-indigo-500 ring-2 ring-indigo-400/40"
+                        : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 hover:text-indigo-300"
+                    }`}
+                  >
+                    💬 Góp ý ({feedbacks.length})
+                  </button>
+
+                  {/* 5. Cấu hình khuyến mãi */}
+                  <button
+                    onClick={openPromoSettings}
+                    className="font-black py-3 px-1.5 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md hover:scale-[1.02] active:scale-98 bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-400 border border-amber-500/20 hover:from-amber-500/20 hover:to-orange-500/20 hover:text-amber-300 col-span-2 sm:col-span-1"
+                  >
+                    🎁 Khuyến mãi
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -1904,13 +2403,40 @@ export default function App() {
                                   Chơi thử ngay <ChevronRight className="w-4 h-4" />
                                 </button>
                                 
-                                <button
-                                  onClick={() => triggerDownload(g)}
-                                  className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold py-2 px-4 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer border border-emerald-150"
-                                  title="Tải về hướng dẫn trò chơi"
-                                >
-                                  <Download className="w-3.5 h-3.5" /> Tải về tài liệu game
-                                </button>
+                                {g.isPaid ? (
+                                  <button
+                                    onClick={() => {
+                                      const mappedProduct = {
+                                        ...g,
+                                        id: g.id,
+                                        title: g.title,
+                                        price: g.salePrice || g.price || 0,
+                                        originalPrice: g.price || 0,
+                                        description: g.desc,
+                                        subject: g.subject || g.category || "Tin học AI",
+                                        grade: g.grade || null,
+                                        type: "Trò chơi học tập",
+                                        rating: 5.0,
+                                        image: g.image || "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=500&auto=format&fit=crop&q=60",
+                                        fileName: g.fileName,
+                                        fileData: g.fileData
+                                      };
+                                      setSelectedDetailProduct(mappedProduct);
+                                    }}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2 px-4 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm hover:scale-[1.01] active:scale-99"
+                                    title="Mua kịch bản và tệp nguồn trò chơi"
+                                  >
+                                    <ShoppingCart className="w-3.5 h-3.5" /> Mua tệp game ({Number(g.salePrice || g.price || 0).toLocaleString('vi-VN')}đ)
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => triggerDownload(g)}
+                                    className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold py-2 px-4 rounded-xl text-[11px] transition-all flex items-center justify-center gap-1 cursor-pointer border border-emerald-150"
+                                    title="Tải về hướng dẫn trò chơi"
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> Tải về tài liệu game
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1964,7 +2490,28 @@ export default function App() {
                           </button>
                           {gameObj.fileData && (
                             <button
-                              onClick={() => triggerDownload(gameObj)}
+                              onClick={() => {
+                                if (gameObj.isPaid) {
+                                  const mappedProduct = {
+                                    ...gameObj,
+                                    id: gameObj.id,
+                                    title: gameObj.title,
+                                    price: gameObj.salePrice || gameObj.price || 0,
+                                    originalPrice: gameObj.price || 0,
+                                    description: gameObj.desc,
+                                    subject: gameObj.subject || gameObj.category || "Tin học AI",
+                                    grade: gameObj.grade || null,
+                                    type: "Trò chơi học tập",
+                                    rating: 5.0,
+                                    image: gameObj.image || "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=500&auto=format&fit=crop&q=60",
+                                    fileName: gameObj.fileName,
+                                    fileData: gameObj.fileData
+                                  };
+                                  setSelectedDetailProduct(mappedProduct);
+                                } else {
+                                  triggerDownload(gameObj);
+                                }
+                              }}
                               className="text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 border border-emerald-200"
                             >
                               <Download className="w-3.5 h-3.5" /> Tải về máy (.HTML)
@@ -2243,12 +2790,588 @@ export default function App() {
               isAdmin={isAdmin}
               onAdminLoginSuccess={handleAdminSuccess}
               onAdminLogout={handleAdminLogout}
+              bannerSettings={bannerSettings}
+              onRefreshBanner={loadBannerSettings}
+              subTab={adminSubTab}
+              onSubTabChange={setAdminSubTab}
+              orders={orders}
+              feedbacks={feedbacks}
+              onRefreshOrders={loadOrders}
+              onRefreshFeedbacks={loadFeedbacks}
             />
           )}
 
         </main>
 
       </div>
+
+      {/* --- PANEL 1 EDIT MODAL --- */}
+      {showPanel1Modal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-lg w-full shadow-2xl p-6 relative overflow-hidden flex flex-col animate-scale-up text-left">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-indigo-600 animate-pulse" />
+                <h3 className="font-black text-slate-900 text-sm">Chỉnh sửa Cổng Quản Trị</h3>
+              </div>
+              <button 
+                onClick={() => setShowPanel1Modal(false)} 
+                className="bg-slate-100 hover:bg-slate-200 p-1.5 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  Tiêu đề chính
+                </label>
+                <input
+                  type="text"
+                  value={panel1Title}
+                  onChange={(e) => setPanel1Title(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  Mô tả chi tiết
+                </label>
+                <textarea
+                  rows={4}
+                  value={panel1Desc}
+                  onChange={(e) => setPanel1Desc(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPanel1Modal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePanel1}
+                disabled={savingPanel1}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {savingPanel1 ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Lưu thay đổi
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* --- BANNER CONFIG MODAL --- */}
+      {showBannerModal && (
+        <div className="fixed inset-0 z-55 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-2xl w-full shadow-2xl p-6 sm:p-8 relative overflow-hidden flex flex-col max-h-[90vh] animate-scale-up text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5 shrink-0">
+              <div className="flex items-center gap-2">
+                <Image className="w-5 h-5 text-indigo-600 animate-pulse" />
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">Cấu hình Banner Trang Chủ</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">Thay đổi hình nền banner, huy hiệu và các tiêu đề động trực tuyến</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBannerModal(false)} 
+                className="bg-slate-100 hover:bg-slate-200 p-2 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-grow overflow-y-auto space-y-6 pr-1 scrollbar-none">
+              
+              {/* Image Banner Section */}
+              <div className="space-y-3 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    🖼️ Hình ảnh nền Banner
+                  </label>
+                  <div className="flex gap-1.5 bg-slate-200 p-0.5 rounded-lg text-[10px] font-black">
+                    <button
+                      type="button"
+                      onClick={() => setBannerBgType("url")}
+                      className={`px-2 py-1 rounded-md transition-all ${bannerBgType === "url" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                    >
+                      Dán Link URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBannerBgType("upload")}
+                      className={`px-2 py-1 rounded-md transition-all ${bannerBgType === "upload" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                    >
+                      Tải lên máy tính
+                    </button>
+                  </div>
+                </div>
+
+                {bannerBgType === "url" ? (
+                  <div className="relative">
+                    <Link className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/... hoặc link ảnh bất kỳ"
+                      value={bannerBgUrl}
+                      onChange={(e) => setBannerBgUrl(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-grow border border-indigo-200 border-dashed bg-white hover:bg-indigo-50/30 transition-all rounded-xl p-3 text-center flex flex-col items-center justify-center cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              if (event.target?.result) {
+                                setBannerBgUrl(event.target.result as string);
+                                showToast(`✓ Đã nạp ảnh nền: ${file.name}`);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <UploadCloud className="w-6 h-6 text-indigo-500 mb-1 animate-bounce" />
+                      <p className="text-[10px] font-black text-indigo-950">Nhấp hoặc kéo thả ảnh nền vào đây</p>
+                      <p className="text-[8px] text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, WEBP</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview Banner Background */}
+                {bannerBgUrl && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Xem trước ảnh nền:</span>
+                    <div className="relative h-24 rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100">
+                      <img 
+                        src={bannerBgUrl} 
+                        alt="Banner Preview" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setBannerBgUrl("")}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-all cursor-pointer"
+                        title="Xóa hình ảnh này"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Text Fields Section */}
+              <div className="space-y-4">
+                {/* Badge text */}
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    🎗️ Văn bản Huy hiệu phía trên
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Hệ thống tiên phong tích hợp AI số hóa giáo dục"
+                    value={bannerBadge}
+                    onChange={(e) => setBannerBadge(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Title 1 */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      ✍️ Tiêu đề phần 1 (Chữ Trắng - Khung số 1)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Giải Pháp Học Liệu Số"
+                      value={bannerTitle1}
+                      onChange={(e) => setBannerTitle1(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Title 2 */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      ✨ Tiêu đề phần 2 (Chữ Gradient - Khung số 1)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Thời Đại Công Nghệ Giáo Dục 4.0"
+                      value={bannerTitle2}
+                      onChange={(e) => setBannerTitle2(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Description - Khung số 2 */}
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    📝 Nội dung chi tiết (Khung số 2 - Hỗ trợ các thẻ HTML như &lt;strong&gt;)
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Ví dụ: Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản GDPT 2018..."
+                    value={bannerDesc}
+                    onChange={(e) => setBannerDesc(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans"
+                  />
+                  <p className="text-[9px] text-slate-400 font-medium">💡 Thầy cô có thể bọc văn bản bằng thẻ <code>&lt;strong&gt;chữ in đậm&lt;/strong&gt;</code> để làm nổi bật văn bản trên trang chủ.</p>
+                </div>
+              </div>
+
+              {/* SQL script notice if using Supabase */}
+              {dbStatus?.connected && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-1.5 text-amber-800 font-extrabold text-xs">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Lưu ý đồng bộ hóa Supabase</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 font-semibold leading-relaxed">
+                    Để lưu cấu hình banner này vĩnh viễn trên dịch vụ đám mây Supabase (không bị đặt lại khi máy chủ khởi động lại hoặc redeploy), vui lòng chắc chắn rằng bạn đã chạy câu lệnh SQL này trong <strong>Supabase SQL Editor</strong>:
+                  </p>
+                  <div className="bg-slate-900 text-slate-300 p-2.5 rounded-xl font-mono text-[9px] overflow-x-auto relative select-all cursor-pointer border border-slate-800">
+                    {`CREATE TABLE IF NOT EXISTS banner_settings (
+  id TEXT PRIMARY KEY DEFAULT 'current',
+  background_image TEXT,
+  badge_text TEXT,
+  title_1 TEXT,
+  title_2 TEXT,
+  description TEXT,
+  admin_panel1_title TEXT,
+  admin_panel1_desc TEXT,
+  admin_panel2_title TEXT,
+  admin_panel2_desc TEXT,
+  admin_panel3_title TEXT,
+  promo_badge TEXT,
+  promo_title1 TEXT,
+  promo_title2 TEXT,
+  promo_desc TEXT,
+  promo_foot TEXT,
+  promo_btn TEXT,
+  promo_enabled BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Nếu bảng đã tồn tại từ trước và thiếu các cột mới, vui lòng chạy các lệnh ALTER TABLE sau:
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel1_title TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel1_desc TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel2_title TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel2_desc TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel3_title TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_badge TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_title1 TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_title2 TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_desc TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_foot TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_btn TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_enabled BOOLEAN DEFAULT false;
+
+ALTER TABLE banner_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access to banner_settings" ON banner_settings FOR SELECT USING (true);
+CREATE POLICY "Allow public full access to banner_settings" ON banner_settings FOR ALL USING (true) WITH CHECK (true);`}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-4 border-t border-slate-100 mt-5 shrink-0 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBannerModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBanner}
+                disabled={savingBanner}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {savingBanner ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Lưu cấu hình Banner
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* --- PROMOTION CONFIG MODAL --- */}
+      {showPromoModal && (
+        <div className="fixed inset-0 z-55 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-4xl w-full shadow-2xl p-6 sm:p-8 relative overflow-hidden flex flex-col max-h-[90vh] animate-scale-up text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5 shrink-0">
+              <div className="flex items-center gap-2">
+                <Gift className="w-5 h-5 text-amber-500 animate-bounce" />
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">Cấu hình Chương Trình Khuyến Mãi</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">Tùy chỉnh nội dung hiển thị của cửa sổ thông báo ưu đãi tự động</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPromoModal(false)} 
+                className="bg-slate-100 hover:bg-slate-200 p-2 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+
+            {/* Scrollable Content with Split Layout: Left Form, Right Preview */}
+            <div className="flex-grow overflow-y-auto pr-1 scrollbar-none space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Left Form */}
+                <div className="space-y-4 text-slate-700">
+                  {/* Toggle Bật / Tắt khuyến mãi */}
+                  <div className="bg-indigo-50/40 border border-indigo-100/50 p-4 rounded-2xl flex items-center justify-between gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1">
+                        📢 Trạng thái chương trình
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-semibold leading-relaxed">
+                        Bật hoặc tắt hiển thị cửa sổ khuyến mãi tự động đối với người dùng
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={promoEnabled} 
+                        onChange={(e) => setPromoEnabled(e.target.checked)} 
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                      <span className="ml-2 text-xs font-black text-slate-800 select-none min-w-[28px]">
+                        {promoEnabled ? "Bật" : "Tắt"}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Badge */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      🎗️ Nhãn Huy hiệu trên cùng
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: SIÊU ƯU ĐÃI GIỚI HẠN"
+                      value={promoBadge}
+                      onChange={(e) => setPromoBadge(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-850"
+                    />
+                  </div>
+
+                  {/* Title 1 */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      ✍️ Tiêu đề chính dòng 1
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: BÙNG NỔ KHUYẾN MẠI"
+                      value={promoTitle1}
+                      onChange={(e) => setPromoTitle1(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-850"
+                    />
+                  </div>
+
+                  {/* Title 2 */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      ✨ Tiêu đề dòng 2 (Nổi bật)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: GIẢM GIÁ 50%"
+                      value={promoTitle2}
+                      onChange={(e) => setPromoTitle2(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-850"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      📝 Mô tả chương trình áp dụng
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Ví dụ: Áp dụng cho toàn bộ học liệu điện tử PowerPoint, giáo án Word môn Tin học, HĐTN và kho trò chơi tương tác số học tương tác AI!"
+                      value={promoDesc}
+                      onChange={(e) => setPromoDesc(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans text-slate-850"
+                    />
+                  </div>
+
+                  {/* Foot / Apply condition */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      🕒 Dòng ghi chú thời hạn / điều kiện
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Áp dụng tự động hôm nay"
+                      value={promoFoot}
+                      onChange={(e) => setPromoFoot(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-850"
+                    />
+                  </div>
+
+                  {/* Button text */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      🚀 Văn bản trên nút hành động
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: MỞ KHO HỌC LIỆU NGAY"
+                      value={promoBtn}
+                      onChange={(e) => setPromoBtn(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-850"
+                    />
+                  </div>
+                </div>
+
+                {/* Right Interactive Preview */}
+                <div className="bg-slate-950 rounded-3xl p-5 flex flex-col justify-center items-center text-center relative overflow-hidden border border-slate-800 min-h-[350px]">
+                  <div className="absolute -top-10 -left-10 w-32 h-32 bg-amber-500 rounded-full filter blur-3xl opacity-10"></div>
+                  <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-indigo-500 rounded-full filter blur-3xl opacity-20"></div>
+
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider bg-slate-900 border border-slate-800 px-2 py-0.5 rounded">
+                      Bản xem trước
+                    </span>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${promoEnabled ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 animate-pulse" : "bg-rose-500/10 text-rose-400 border border-rose-500/25"}`}>
+                      ● {promoEnabled ? "Đang bật" : "Đang tắt"}
+                    </span>
+                  </div>
+
+                  <div className="relative z-10 space-y-4 max-w-sm w-full">
+                    <div className="bg-amber-500/15 text-amber-400 p-3 rounded-full w-fit mx-auto border border-amber-500/20">
+                      <Flame className="w-8 h-8 fill-amber-500 animate-pulse text-amber-500" />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg block w-fit mx-auto">
+                        {promoBadge || "SIÊU ƯU ĐÃI GIỚI HẠN"}
+                      </span>
+                      <h3 className="text-lg sm:text-xl font-black text-white leading-tight">
+                        {promoTitle1 || "BÙNG NỔ KHUYẾN MẠI"} <br />
+                        <span className="bg-gradient-to-r from-amber-300 via-orange-400 to-yellow-300 bg-clip-text text-transparent text-2xl sm:text-3xl font-extrabold block mt-1">
+                          {promoTitle2 || "GIẢM GIÁ 50%"}
+                        </span>
+                      </h3>
+                      <p className="text-slate-400 text-[10px] sm:text-xs font-medium leading-relaxed max-w-xs mx-auto">
+                        {promoDesc || "Áp dụng cho toàn bộ học liệu điện tử PowerPoint, giáo án Word môn Tin học, HĐTN và kho trò chơi tương tác số học tương tác AI!"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 p-2 rounded-xl w-fit mx-auto">
+                      <p className="text-[10px] text-indigo-300 font-bold flex items-center justify-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" /> {promoFoot || "Áp dụng tự động hôm nay"}
+                      </p>
+                    </div>
+
+                    <button 
+                      type="button"
+                      disabled
+                      className="w-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 text-slate-950 font-black py-2.5 px-4 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1 shadow-md shadow-orange-500/10 cursor-not-allowed opacity-90"
+                    >
+                      <Sparkles className="w-4 h-4 text-slate-950" />
+                      <span>{promoBtn || "MỞ KHO HỌC LIỆU NGAY"}</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-4 border-t border-slate-100 mt-5 shrink-0 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPromoModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePromo}
+                disabled={savingPromo}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {savingPromo ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Lưu thông tin khuyến mãi
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* --- SHOPPING CART MODAL --- */}
       {showCartModal && (
@@ -2342,6 +3465,44 @@ export default function App() {
                       />
                     </div>
 
+                    <div className="border-t border-slate-100 pt-3 mt-3 space-y-3">
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-wider block">Tài khoản ngân hàng của bạn (đối soát/hoàn tiền)</p>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Tên ngân hàng của thầy cô</label>
+                        <input 
+                          type="text" 
+                          value={buyerBankName}
+                          onChange={(e) => setBuyerBankName(e.target.value)}
+                          placeholder="Ví dụ: Vietcombank, MB Bank, Techcombank..."
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Số tài khoản</label>
+                          <input 
+                            type="text" 
+                            value={buyerBankAccount}
+                            onChange={(e) => setBuyerBankAccount(e.target.value)}
+                            placeholder="1234567890"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Chủ tài khoản</label>
+                          <input 
+                            type="text" 
+                            value={buyerBankAccountName}
+                            onChange={(e) => setBuyerBankAccountName(e.target.value)}
+                            placeholder="NGUYEN VAN A"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     <button 
                       type="submit" 
                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-3 rounded-xl text-xs transition-all shadow-md mt-4 cursor-pointer"
@@ -2359,85 +3520,98 @@ export default function App() {
                   </form>
                 ) : (
                   /* 3. Render Banking QR Code dynamically! */
-                  <div className="space-y-4 text-center animate-scale-up">
-                    <div className="bg-green-50 rounded-2xl p-4 border border-green-100 text-left">
-                      <p className="font-extrabold text-green-700 text-xs flex items-center gap-1">
-                        <CheckCircle className="w-4 h-4 shrink-0" />
-                        Đã lập hóa đơn số ID: {orderCreatedId}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-1 font-medium">Vui lòng rà soát quét mã QR hoặc chuyển khoản thông qua thông tin ngân hàng ủy quyền dưới đây.</p>
-                    </div>
+                  (() => {
+                    const activeBankName = bankSettings?.isEnabled ? bankSettings.bankName : "Vietinbank";
+                    const activeAccountNumber = bankSettings?.isEnabled ? bankSettings.accountNumber : "10987654321";
+                    const activeAccountHolder = bankSettings?.isEnabled ? bankSettings.accountHolder : "EDUSHOP AI VIETNAM";
+                    const memoPattern = bankSettings?.isEnabled ? bankSettings.memoTemplate : "EDUSHOP {orderId}";
+                    const finalMemo = memoPattern.replace("{orderId}", orderCreatedId || "");
+                    const bankNameForQR = activeBankName.replace(/\s+/g, "");
+                    const qrUrl = `https://img.vietqr.io/image/${bankNameForQR}-${activeAccountNumber}-compact.png?amount=${totalCartPrice}&addInfo=${encodeURIComponent(finalMemo)}&accountName=${encodeURIComponent(activeAccountHolder)}`;
 
-                    {/* QR Code display */}
-                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 w-fit mx-auto shadow-sm space-y-2">
-                      <div className="bg-white p-2 rounded-2xl w-48 h-48 mx-auto flex items-center justify-center border border-slate-100">
-                        {/* Dynamic QR API with real details */}
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=27112000_Vietinbank_STK_EduShopAI_SoTien_${totalCartPrice}_NoiDung_${orderCreatedId}`} 
-                          alt="QR chuyển khoản ngân hàng"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full block tracking-wider">VIETINBANK - QUÉT ĐỂ CHUYỂN KHOẢN</span>
-                    </div>
-
-                    {/* Copyable details list */}
-                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-left text-xs space-y-2.5">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-slate-400 font-bold text-[10px] uppercase">Ngân hàng:</span>
-                        <strong className="text-slate-800">VIETINBANK (Nhà nước)</strong>
-                      </div>
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-slate-400 font-bold text-[10px] uppercase">Chủ thẻ:</span>
-                        <strong className="text-slate-800">EDUSHOP AI VIETNAM</strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400 font-bold text-[10px] uppercase">Số tài khoản:</span>
-                        <div className="flex items-center gap-1">
-                          <strong className="text-indigo-650 font-black">1098 7654 321</strong>
-                          <button 
-                            onClick={() => {
-                              navigator.clipboard.writeText("10987654321");
-                              showToast("📋 Đã sao chép STK ngân hàng!");
-                            }}
-                            className="bg-white p-1 rounded-lg border border-slate-100 hover:bg-slate-100 text-slate-500"
-                            title="Sao chép"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
+                    return (
+                      <div className="space-y-4 text-center animate-scale-up">
+                        <div className="bg-green-50 rounded-2xl p-4 border border-green-100 text-left">
+                          <p className="font-extrabold text-green-700 text-xs flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4 shrink-0" />
+                            Đã lập hóa đơn số ID: {orderCreatedId}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium">Vui lòng rà soát quét mã QR hoặc chuyển khoản thông qua thông tin ngân hàng ủy quyền dưới đây.</p>
                         </div>
-                      </div>
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-slate-400 font-bold text-[10px] uppercase">Số tiền đóng:</span>
-                        <strong className="text-red-500 text-sm font-black">{totalCartPrice.toLocaleString("vi-VN")}đ</strong>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400 font-bold text-[10px] uppercase">Nội dung CK:</span>
-                        <div className="flex items-center gap-1">
-                          <strong className="text-emerald-600 font-black select-all">{orderCreatedId}</strong>
-                          <button 
-                            onClick={() => {
-                              if (orderCreatedId) {
-                                navigator.clipboard.writeText(orderCreatedId);
-                                showToast("📋 Đã sao chép nội dung chuyển khoản!");
-                              }
-                            }}
-                            className="bg-white p-1 rounded-lg border border-slate-100 hover:bg-slate-100 text-slate-500"
-                            title="Sao chép"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
 
-                    <button
-                      onClick={confirmTransferred}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl text-xs transition-all shadow-md cursor-pointer tracking-wider block"
-                    >
-                      Tôi đã thực hiện chuyển tiền hoàn tất
-                    </button>
-                  </div>
+                        {/* QR Code display */}
+                        <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 w-fit mx-auto shadow-sm space-y-2">
+                          <div className="bg-white p-2 rounded-2xl w-48 h-48 mx-auto flex items-center justify-center border border-slate-100">
+                            {/* Dynamic VietQR with real details */}
+                            <img 
+                              src={qrUrl} 
+                              alt="QR chuyển khoản ngân hàng"
+                              className="w-full h-full object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                          <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full block tracking-wider">
+                            {activeBankName.toUpperCase()} - QUÉT ĐỂ CHUYỂN KHOẢN
+                          </span>
+                        </div>
+
+                        {/* Copyable details list */}
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-left text-xs space-y-2.5">
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-slate-400 font-bold text-[10px] uppercase">Ngân hàng:</span>
+                            <strong className="text-slate-800">{activeBankName}</strong>
+                          </div>
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-slate-400 font-bold text-[10px] uppercase">Chủ thẻ:</span>
+                            <strong className="text-slate-800">{activeAccountHolder}</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-bold text-[10px] uppercase">Số tài khoản:</span>
+                            <div className="flex items-center gap-1">
+                              <strong className="text-indigo-650 font-black">{activeAccountNumber}</strong>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(activeAccountNumber);
+                                  showToast("📋 Đã sao chép STK ngân hàng!");
+                                }}
+                                className="bg-white p-1 rounded-lg border border-slate-100 hover:bg-slate-100 text-slate-500 cursor-pointer"
+                                title="Sao chép"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-slate-400 font-bold text-[10px] uppercase">Số tiền đóng:</span>
+                            <strong className="text-red-500 text-sm font-black">{totalCartPrice.toLocaleString("vi-VN")}đ</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-bold text-[10px] uppercase">Nội dung CK:</span>
+                            <div className="flex items-center gap-1">
+                              <strong className="text-emerald-600 font-black select-all">{finalMemo}</strong>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(finalMemo);
+                                  showToast("📋 Đã sao chép nội dung chuyển khoản!");
+                                }}
+                                className="bg-white p-1 rounded-lg border border-slate-100 hover:bg-slate-100 text-slate-500 cursor-pointer"
+                                title="Sao chép"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={confirmTransferred}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl text-xs transition-all shadow-md cursor-pointer tracking-wider block"
+                        >
+                          Tôi đã chuyển khoản hoàn tất
+                        </button>
+                      </div>
+                    );
+                  })()
                 )
               )}
             </div>
@@ -2685,22 +3859,22 @@ export default function App() {
               
               <div className="space-y-2">
                 <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-xs font-black uppercase tracking-widest px-4.5 py-1.5 rounded-full shadow-lg block w-fit mx-auto">
-                  SIÊU ƯU ĐÃI GIỚI HẠN
+                  {bannerSettings?.promoBadge || "SIÊU ƯU ĐÃI GIỚI HẠN"}
                 </span>
                 <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight pt-2">
-                  BÙNG NỔ KHUYẾN MẠI <br />
+                  {bannerSettings?.promoTitle1 || "BÙNG NỔ KHUYẾN MẠI"} <br />
                   <span className="bg-gradient-to-r from-amber-300 via-orange-400 to-yellow-300 bg-clip-text text-transparent text-4xl sm:text-5xl font-extrabold block mt-2">
-                    GIẢM GIÁ 50%
+                    {bannerSettings?.promoTitle2 || "GIẢM GIÁ 50%"}
                   </span>
                 </h3>
                 <p className="text-slate-300 text-xs sm:text-sm font-semibold leading-relaxed max-w-md mx-auto">
-                  Áp dụng cho toàn bộ học liệu điện tử PowerPoint, giáo án Word môn Tin học, HĐTN và kho trò chơi tương tác số học tương tác AI!
+                  {bannerSettings?.promoDesc || "Áp dụng cho toàn bộ học liệu điện tử PowerPoint, giáo án Word môn Tin học, HĐTN và kho trò chơi tương tác số học tương tác AI!"}
                 </p>
               </div>
 
               <div className="bg-white/5 border border-white/10 p-3 rounded-2xl w-fit mx-auto">
                 <p className="text-xs text-indigo-300 font-bold flex items-center justify-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-400 animate-spin" /> Áp dụng tự động hôm nay
+                  <Clock className="w-4 h-4 text-amber-400 animate-spin" /> {bannerSettings?.promoFoot || "Áp dụng tự động hôm nay"}
                 </p>
               </div>
 
@@ -2708,12 +3882,12 @@ export default function App() {
                 onClick={() => {
                   setShowPromoPopup(false);
                   setActiveTab("kho-hoc-lieu");
-                  showToast("🎉 Ưu đãi 50% đã được áp dụng tự động cho thầy cô!");
+                  showToast(`🎉 ${bannerSettings?.promoTitle2 || "Ưu đãi 50%"} đã được áp dụng tự động cho thầy cô!`);
                 }}
                 className="w-full bg-gradient-to-r from-amber-400 via-orange-505 to-red-500 text-slate-950 font-black py-4 px-6 rounded-2xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/30 cursor-pointer hover:opacity-95 transform active:scale-95 animate-bounce"
               >
                 <Sparkles className="w-5 h-5 text-slate-950" />
-                <span>MỞ KHO HỌC LIỆU NGAY</span>
+                <span>{bannerSettings?.promoBtn || "MỞ KHO HỌC LIỆU NGAY"}</span>
               </button>
             </div>
           </div>
@@ -4064,6 +5238,8 @@ function InitiativeCard({ item, isAdmin, onAddToCart, onOpenDetail, onDelete, on
     image: item.image || getInitiativeImage(item)
   };
 
+  const isFree = item.price === 0 || (item as any).isFree === true || (item as any).is_free === true || String((item as any).is_free) === "true";
+
   const handleDeleteClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm("Admin: Bạn chắc chắn muốn xóa sáng kiến này?")) return;
@@ -4161,27 +5337,36 @@ function InitiativeCard({ item, isAdmin, onAddToCart, onOpenDetail, onDelete, on
 
         <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
           <div>
-            <p className="text-slate-800 font-black text-xs sm:text-xs md:text-sm">{item.price.toLocaleString("vi-VN")}đ</p>
-            <p className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider">Lưu kèm phụ lục Sở GD</p>
+            {isFree ? (
+              <span className="text-emerald-600 font-extrabold text-xs sm:text-xs md:text-sm bg-emerald-50 px-2 py-0.5 rounded-full">Miễn phí</span>
+            ) : (
+              <div className="space-y-0.5 leading-none">
+                <p className="text-slate-800 font-black text-xs sm:text-xs md:text-sm">{item.price.toLocaleString("vi-VN")}đ</p>
+                <p className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider">Lưu kèm phụ lục Sở GD</p>
+              </div>
+            )}
           </div>
           
-          <div className="flex items-center gap-1.5">
-            {onDownload && (
-              <button
-                onClick={handleDownloadClick}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-1.5 px-2.5 rounded-lg text-[9.5px] transition-all flex items-center gap-0.5 cursor-pointer shadow-sm hover:scale-102 active:scale-98"
-                title="Tải tài liệu bản tóm tắt hoặc tệp đính kèm học liệu"
-              >
-                <Download className="w-3 h-3" /> Tải về
-              </button>
+          <button
+            onClick={() => {
+              if (isFree) {
+                onAddToCart(mappedProduct);
+              } else {
+                onOpenDetail(mappedProduct);
+              }
+            }}
+            className={`py-1.5 px-3 rounded-lg text-[9.5px] font-extrabold transition-all flex items-center gap-1 cursor-pointer shadow-sm hover:scale-102 active:scale-98 ${isFree ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100" : "bg-indigo-600 hover:bg-indigo-700 text-white"}`}
+          >
+            {isFree ? (
+              <>
+                <Download className="w-3 h-3" /> Tải ngay
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="w-2.8 h-2.8" /> Mua tệp
+              </>
             )}
-            <button
-              onClick={() => onAddToCart(mappedProduct)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-1.5 px-3 rounded-lg text-[9.5px] transition-all flex items-center gap-0.5 cursor-pointer shadow-sm hover:scale-102 active:scale-98"
-            >
-              <ShoppingCart className="w-2.8 h-2.8" /> Mua tệp
-            </button>
-          </div>
+          </button>
         </div>
       </div>
     </div>

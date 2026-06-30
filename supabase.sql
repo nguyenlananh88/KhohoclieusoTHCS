@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS initiatives (
   title TEXT NOT NULL,
   author TEXT NOT NULL,
   "desc" TEXT, -- desc is a SQL keyword, quoting avoids syntax conflicts
+  image TEXT,
   price INTEGER DEFAULT 0,
   sales INTEGER DEFAULT 0,
   downloads INTEGER DEFAULT 0,
@@ -40,6 +41,9 @@ CREATE TABLE IF NOT EXISTS orders (
   buyer_name TEXT NOT NULL,
   buyer_email TEXT NOT NULL,
   buyer_phone TEXT,
+  buyer_bank_name TEXT,
+  buyer_bank_account TEXT,
+  buyer_bank_account_name TEXT,
   total_amount INTEGER DEFAULT 0,
   items JSONB NOT NULL,
   status TEXT DEFAULT 'pending',

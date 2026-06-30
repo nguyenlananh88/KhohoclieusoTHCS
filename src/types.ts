@@ -33,6 +33,9 @@ export interface Order {
   buyerName: string;
   buyerEmail: string;
   buyerPhone: string;
+  buyerBankName?: string;
+  buyerBankAccount?: string;
+  buyerBankAccountName?: string;
   totalAmount: number;
   items: any[];
   status: 'pending' | 'paid' | 'declined';

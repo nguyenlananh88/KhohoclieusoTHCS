@@ -104,6 +104,36 @@ const FEEDBACKS_FILE = path.join(DATA_DIR, "feedbacks.json");
 const ADMIN_FILE = path.join(DATA_DIR, "admin.json");
 const GAMES_FILE = path.join(DATA_DIR, "games.json");
 const SUBJECTS_FILE = path.join(DATA_DIR, "subjects.json");
+const BANNER_FILE = path.join(DATA_DIR, "banner.json");
+const BANK_FILE = path.join(DATA_DIR, "bank.json");
+
+const DEFAULT_BANNER = {
+  backgroundImage: "",
+  badgeText: "Hệ thống tiên phong tích hợp AI số hóa giáo dục",
+  title1: "Giải Pháp Học Liệu Số",
+  title2: "Thời Đại Công Nghệ Giáo Dục 4.0",
+  description: "Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản GDPT 2018 lý tưởng cho bộ môn Tin Học & Hoạt Động Trải Nghiệm.",
+  adminPanel1Title: "Cổng Quản Trị Hệ Thống EduShop AI",
+  adminPanel1Desc: "Bảng kiểm soát tích hợp: Đăng tải trực tiếp file học liệu, sáng kiến thực tiễn, trò chơi học tập tương tác bám sát chuẩn GDPT 2018 và đồng bộ hóa danh mục môn học.",
+  adminPanel2Title: "Hệ Thống Phân Quyền Quản Trị Chặt Chẽ",
+  adminPanel2Desc: "Thầy cô Admin: admin • Cấu hình trực tuyến thời gian thực các học liệu GDPT 2018.",
+  adminPanel3Title: "QUẢN LÝ BÁN HÀNG",
+  promoBadge: "SIÊU ƯU ĐÃI GIỚI HẠN",
+  promoTitle1: "BÙNG NỔ KHUYẾN MẠI",
+  promoTitle2: "GIẢM GIÁ 50%",
+  promoDesc: "Áp dụng cho toàn bộ học liệu điện tử PowerPoint, giáo án Word môn Tin học, HĐTN và kho trò chơi tương tác số học tương tác AI!",
+  promoFoot: "Áp dụng tự động hôm nay",
+  promoBtn: "MỞ KHO HỌC LIỆU NGAY",
+  promoEnabled: true
+};
+
+const DEFAULT_BANK_SETTINGS = {
+  bankName: "MB Bank",
+  accountNumber: "",
+  accountHolder: "",
+  memoTemplate: "EDUSHOP {orderId}",
+  isEnabled: false
+};
 
 const INITIAL_SUBJECTS = ["Tin học", "Hoạt động trải nghiệm"];
 
@@ -558,6 +588,9 @@ const mapOrderFromDB = (o: any) => ({
   buyerName: o.buyer_name,
   buyerEmail: o.buyer_email,
   buyerPhone: o.buyer_phone,
+  buyerBankName: o.buyer_bank_name || "",
+  buyerBankAccount: o.buyer_bank_account || "",
+  buyerBankAccountName: o.buyer_bank_account_name || "",
   totalAmount: o.total_amount,
   items: o.items,
   status: o.status,
@@ -569,6 +602,9 @@ const mapOrderToDB = (o: any) => ({
   buyer_name: o.buyerName,
   buyer_email: o.buyerEmail,
   buyer_phone: o.buyerPhone,
+  buyer_bank_name: o.buyerBankName || "",
+  buyer_bank_account: o.buyerBankAccount || "",
+  buyer_bank_account_name: o.buyerBankAccountName || "",
   total_amount: Number(o.totalAmount) || 0,
   items: o.items || [],
   status: o.status || "pending",
@@ -1828,6 +1864,148 @@ async function deleteSubjectFromDB(name: string) {
   return updatedList;
 }
 
+// Banner Configuration APIs
+app.get("/api/banner", async (req, res) => {
+  const localData = readData(BANNER_FILE, DEFAULT_BANNER);
+  const mergedData = { ...DEFAULT_BANNER, ...localData };
+
+  if (SUPABASE_URL && SUPABASE_KEY && !useSupabaseFallback) {
+    try {
+      const { data, error } = await supabase
+        .from("banner_settings")
+        .select("*")
+        .eq("id", "current")
+        .single();
+      
+      if (!error && data) {
+        return res.json({
+          ...mergedData,
+          backgroundImage: data.background_image || mergedData.backgroundImage,
+          badgeText: data.badge_text || mergedData.badgeText,
+          title1: data.title_1 || mergedData.title1,
+          title2: data.title_2 || mergedData.title2,
+          description: data.description || mergedData.description,
+          adminPanel1Title: data.admin_panel1_title || mergedData.adminPanel1Title,
+          adminPanel1Desc: data.admin_panel1_desc || mergedData.adminPanel1Desc,
+          adminPanel2Title: data.admin_panel2_title || mergedData.adminPanel2Title,
+          adminPanel2Desc: data.admin_panel2_desc || mergedData.adminPanel2Desc,
+          adminPanel3Title: data.admin_panel3_title || mergedData.adminPanel3Title,
+          promoBadge: data.promo_badge || mergedData.promoBadge,
+          promoTitle1: data.promo_title1 || mergedData.promoTitle1,
+          promoTitle2: data.promo_title2 || mergedData.promoTitle2,
+          promoDesc: data.promo_desc || mergedData.promoDesc,
+          promoFoot: data.promo_foot || mergedData.promoFoot,
+          promoBtn: data.promo_btn || mergedData.promoBtn,
+          promoEnabled: data.promo_enabled !== undefined ? (data.promo_enabled === true || data.promo_enabled === "true" || String(data.promo_enabled) === "true") : mergedData.promoEnabled
+        });
+      }
+    } catch (e: any) {
+      console.warn("[Supabase] Failed to fetch banner_settings:", e.message || e);
+    }
+  }
+  
+  res.json(mergedData);
+});
+
+// Bank Settings Configuration APIs
+app.get("/api/bank", (req, res) => {
+  const localData = readData(BANK_FILE, DEFAULT_BANK_SETTINGS);
+  res.json({ ...DEFAULT_BANK_SETTINGS, ...localData });
+});
+
+app.post("/api/admin/bank", requireAdmin, (req, res) => {
+  const settings = req.body;
+  if (!settings) {
+    return res.status(400).json({ error: "Dữ liệu cấu hình ngân hàng không hợp lệ." });
+  }
+  writeData(BANK_FILE, settings);
+  res.json({ success: true, message: "Đã cập nhật cấu hình tài khoản ngân hàng thành công!", data: settings });
+});
+
+app.post("/api/admin/banner", requireAdmin, async (req, res) => {
+  const settings = req.body;
+  if (!settings) {
+    return res.status(400).json({ error: "Dữ liệu cấu hình không hợp lệ." });
+  }
+
+  if (SUPABASE_URL && SUPABASE_KEY && !useSupabaseFallback) {
+    try {
+      // 1. Cố gắng upsert đầy đủ tất cả các trường bao gồm cả cấu hình Khuyến mãi và Admin Panels mới
+      const { error: fullError } = await supabase
+        .from("banner_settings")
+        .upsert({
+          id: "current",
+          background_image: settings.backgroundImage || "",
+          badge_text: settings.badgeText || "",
+          title_1: settings.title1 || "",
+          title_2: settings.title2 || "",
+          description: settings.description || "",
+          admin_panel1_title: settings.adminPanel1Title || "",
+          admin_panel1_desc: settings.adminPanel1Desc || "",
+          admin_panel2_title: settings.adminPanel2Title || "",
+          admin_panel2_desc: settings.adminPanel2Desc || "",
+          admin_panel3_title: settings.adminPanel3Title || "",
+          promo_badge: settings.promoBadge || "",
+          promo_title1: settings.promoTitle1 || "",
+          promo_title2: settings.promoTitle2 || "",
+          promo_desc: settings.promoDesc || "",
+          promo_foot: settings.promoFoot || "",
+          promo_btn: settings.promoBtn || "",
+          promo_enabled: settings.promoEnabled === true || settings.promoEnabled === "true",
+          updated_at: new Date().toISOString()
+        });
+      
+      if (fullError) {
+        console.warn("[Supabase] Failed to upsert with all columns, trying fallback without promo columns:", fullError.message);
+        
+        // 2. Thử phiên bản cũ trung gian (chỉ có các trường thông thường và admin panels)
+        const { error: intermediateError } = await supabase
+          .from("banner_settings")
+          .upsert({
+            id: "current",
+            background_image: settings.backgroundImage || "",
+            badge_text: settings.badgeText || "",
+            title_1: settings.title1 || "",
+            title_2: settings.title2 || "",
+            description: settings.description || "",
+            admin_panel1_title: settings.adminPanel1Title || "",
+            admin_panel1_desc: settings.adminPanel1Desc || "",
+            admin_panel2_title: settings.adminPanel2Title || "",
+            admin_panel2_desc: settings.adminPanel2Desc || "",
+            admin_panel3_title: settings.adminPanel3Title || "",
+            updated_at: new Date().toISOString()
+          });
+
+        if (intermediateError) {
+          console.warn("[Supabase] Intermediate upsert also failed (likely missing admin_panel* columns), falling back to core columns:", intermediateError.message);
+          
+          // 3. Thử phiên bản cốt lõi cơ bản nhất luôn tồn tại trong mọi phiên bản schema cũ của banner_settings
+          const { error: coreError } = await supabase
+            .from("banner_settings")
+            .upsert({
+              id: "current",
+              background_image: settings.backgroundImage || "",
+              badge_text: settings.badgeText || "",
+              title_1: settings.title1 || "",
+              title_2: settings.title2 || "",
+              description: settings.description || "",
+              updated_at: new Date().toISOString()
+            });
+
+          if (coreError) {
+            console.error("[Supabase] Absolute core upsert failed as well:", coreError.message);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn("[Supabase] Exception in save banner_settings:", e.message || e);
+    }
+  }
+
+  writeData(BANNER_FILE, settings);
+  res.json({ success: true, message: "Đã cập nhật cấu hình banner thành công!", data: settings });
+});
+
 // Subjects Management APIs
 app.get("/api/subjects", async (req, res) => {
   const list = await fetchSubjects();
@@ -1866,7 +2044,7 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
 });
 
 app.post("/api/orders", async (req, res) => {
-  const { cartItems, buyerName, buyerEmail, buyerPhone, totalAmount } = req.body;
+  const { cartItems, buyerName, buyerEmail, buyerPhone, totalAmount, buyerBankName, buyerBankAccount, buyerBankAccountName } = req.body;
   
   if (!cartItems || cartItems.length === 0) {
     return res.status(400).json({ error: "Giỏ hàng rỗng" });
@@ -1877,6 +2055,9 @@ app.post("/api/orders", async (req, res) => {
     buyerName: buyerName || "Người mua ẩn danh",
     buyerEmail: buyerEmail || "chua_cung_cap@example.com",
     buyerPhone: buyerPhone || "",
+    buyerBankName: buyerBankName || "",
+    buyerBankAccount: buyerBankAccount || "",
+    buyerBankAccountName: buyerBankAccountName || "",
     totalAmount: Number(totalAmount) || 0,
     items: cartItems,
     status: "pending", // pending, paid, declined

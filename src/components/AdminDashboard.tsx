@@ -3,7 +3,7 @@ import {
   Lock, Key, ShieldCheck, LogOut, Grid, Plus, Trash, Edit2, 
   Check, X, FileText, ShoppingCart, Loader2, DollarSign, 
   Layers, User, Mail, Phone, Calendar, RefreshCw, MessageSquare, AlertCircle, Sparkles, CheckCircle,
-  UploadCloud, Paperclip, Eye, EyeOff, Image, Link
+  UploadCloud, Paperclip, Eye, EyeOff, Image, Link, Shield, UserPlus, CreditCard
 } from "lucide-react";
 import { Product, Initiative, Order, Feedback } from "../types";
 
@@ -15,6 +15,25 @@ interface AdminDashboardProps {
   isAdmin: boolean;
   onAdminLoginSuccess: (token: string) => void;
   onAdminLogout: () => void;
+  bannerSettings?: {
+    backgroundImage: string;
+    badgeText: string;
+    title1: string;
+    title2: string;
+    description: string;
+    adminPanel1Title?: string;
+    adminPanel1Desc?: string;
+    adminPanel2Title?: string;
+    adminPanel2Desc?: string;
+    adminPanel3Title?: string;
+  };
+  onRefreshBanner?: () => void;
+  subTab?: "dashboard" | "products" | "orders" | "feedbacks" | "settings";
+  onSubTabChange?: (tab: "dashboard" | "products" | "orders" | "feedbacks" | "settings") => void;
+  orders?: Order[];
+  feedbacks?: Feedback[];
+  onRefreshOrders?: () => void;
+  onRefreshFeedbacks?: () => void;
 }
 
 export default function AdminDashboard({
@@ -24,7 +43,15 @@ export default function AdminDashboard({
   onRefreshInitiatives,
   isAdmin,
   onAdminLoginSuccess,
-  onAdminLogout
+  onAdminLogout,
+  bannerSettings,
+  onRefreshBanner,
+  subTab: propSubTab,
+  onSubTabChange,
+  orders: propOrders,
+  feedbacks: propFeedbacks,
+  onRefreshOrders,
+  onRefreshFeedbacks
 }: AdminDashboardProps) {
   // Login fields
   const [username, setUsername] = useState("");
@@ -33,9 +60,18 @@ export default function AdminDashboard({
   const [loginLoading, setLoginLoading] = useState(false);
 
   // States inside admin panel
-  const [subTab, setSubTab] = useState<"dashboard" | "products" | "orders" | "feedbacks" | "settings">("dashboard");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [localSubTab, setLocalSubTab] = useState<"dashboard" | "products" | "orders" | "feedbacks" | "settings">("dashboard");
+  const subTab = propSubTab !== undefined ? propSubTab : localSubTab;
+  const setSubTab = (tab: "dashboard" | "products" | "orders" | "feedbacks" | "settings") => {
+    setLocalSubTab(tab);
+    if (onSubTabChange) {
+      onSubTabChange(tab);
+    }
+  };
+  const [localOrders, setLocalOrders] = useState<Order[]>([]);
+  const [localFeedbacks, setLocalFeedbacks] = useState<Feedback[]>([]);
+  const orders = propOrders !== undefined ? propOrders : localOrders;
+  const feedbacks = propFeedbacks !== undefined ? propFeedbacks : localFeedbacks;
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -48,6 +84,155 @@ export default function AdminDashboard({
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
+
+  // Banner Settings Form State
+  const [showBannerModal, setShowBannerModal] = useState(false);
+  const [bannerBgType, setBannerBgType] = useState<"upload" | "url">("url");
+  const [bannerBgUrl, setBannerBgUrl] = useState("");
+  const [bannerBadge, setBannerBadge] = useState("");
+  const [bannerTitle1, setBannerTitle1] = useState("");
+  const [bannerTitle2, setBannerTitle2] = useState("");
+  const [bannerDesc, setBannerDesc] = useState("");
+  const [savingBanner, setSavingBanner] = useState(false);
+
+  const openBannerSettings = () => {
+    const current = bannerSettings || {
+      backgroundImage: "",
+      badgeText: "Hệ thống tiên phong tích hợp AI số hóa giáo dục",
+      title1: "Giải Pháp Học Liệu Số",
+      title2: "Thời Đại Công Nghệ Giáo Dục 4.0",
+      description: "Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản GDPT 2018 lý tưởng cho bộ môn Tin Học & Hoạt Động Trải Nghiệm."
+    };
+    setBannerBgUrl(current.backgroundImage || "");
+    setBannerBgType(current.backgroundImage?.startsWith("data:") ? "upload" : "url");
+    setBannerBadge(current.badgeText || "");
+    setBannerTitle1(current.title1 || "");
+    setBannerTitle2(current.title2 || "");
+    setBannerDesc(current.description || "");
+    setShowBannerModal(true);
+  };
+
+  const handleSaveBanner = async () => {
+    if (!bannerTitle1.trim()) {
+      showToast("⚠️ Vui lòng nhập tiêu đề chính phần 1!");
+      return;
+    }
+    setSavingBanner(true);
+    try {
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          ...bannerSettings,
+          backgroundImage: bannerBgUrl,
+          badgeText: bannerBadge,
+          title1: bannerTitle1,
+          title2: bannerTitle2,
+          description: bannerDesc
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Cập nhật cấu hình banner thành công!");
+        setShowBannerModal(false);
+        if (onRefreshBanner) {
+          onRefreshBanner();
+        }
+      } else {
+        const err = await res.json();
+        showToast(`❌ Lỗi lưu banner: ${err.error || "Không rõ"}`);
+      }
+    } catch (err: any) {
+      console.error("Lỗi lưu banner:", err);
+      showToast("❌ Không kết nối được đến máy chủ.");
+    } finally {
+      setSavingBanner(false);
+    }
+  };
+
+  // States & Handlers for Editing Panel 2 & Panel 3
+  const [showPanel2Modal, setShowPanel2Modal] = useState(false);
+  const [panel2Title, setPanel2Title] = useState("");
+  const [panel2Desc, setPanel2Desc] = useState("");
+  const [savingPanel2, setSavingPanel2] = useState(false);
+
+  const [showPanel3Modal, setShowPanel3Modal] = useState(false);
+  const [panel3Title, setPanel3Title] = useState("");
+  const [savingPanel3, setSavingPanel3] = useState(false);
+
+  const handleSavePanel2 = async () => {
+    if (!panel2Title.trim()) {
+      showToast("⚠️ Vui lòng nhập tiêu đề!");
+      return;
+    }
+    setSavingPanel2(true);
+    try {
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          ...bannerSettings,
+          adminPanel2Title: panel2Title,
+          adminPanel2Desc: panel2Desc
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Cập nhật tiêu đề bảng thành công!");
+        setShowPanel2Modal(false);
+        if (onRefreshBanner) onRefreshBanner();
+      } else {
+        const err = await res.json();
+        showToast(`❌ Lỗi: ${err.error || "Không rõ"}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast("❌ Không kết nối được đến máy chủ.");
+    } finally {
+      setSavingPanel2(false);
+    }
+  };
+
+  const handleSavePanel3 = async () => {
+    if (!panel3Title.trim()) {
+      showToast("⚠️ Vui lòng nhập tiêu đề phân khu quản lý!");
+      return;
+    }
+    setSavingPanel3(true);
+    try {
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          ...bannerSettings,
+          adminPanel3Title: panel3Title
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Cập nhật tiêu đề phân khu thành công!");
+        setShowPanel3Modal(false);
+        if (onRefreshBanner) onRefreshBanner();
+      } else {
+        const err = await res.json();
+        showToast(`❌ Lỗi: ${err.error || "Không rõ"}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast("❌ Không kết nối được đến máy chủ.");
+    } finally {
+      setSavingPanel3(false);
+    }
+  };
 
   // Password visibility status toggles
   const [showLoginPass, setShowLoginPass] = useState(false);
@@ -64,6 +249,19 @@ export default function AdminDashboard({
   const [addAdminError, setAddAdminError] = useState("");
   const [addAdminSuccess, setAddAdminSuccess] = useState("");
   const [addAdminLoading, setAddAdminLoading] = useState(false);
+
+  // Bank account and link payment states
+  const [bankName, setBankName] = useState("MB Bank");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [memoTemplate, setMemoTemplate] = useState("EDUSHOP {orderId}");
+  const [isBankEnabled, setIsBankEnabled] = useState(false);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankError, setBankError] = useState("");
+  const [bankSuccess, setBankSuccess] = useState("");
+  
+  // Security Modal Sub-Tab State ("password" | "accounts" | "bank")
+  const [securityActiveTab, setSecurityActiveTab] = useState<"password" | "accounts" | "bank">("password");
 
   // Product file fields for upload from local computer
   const [formFileData, setFormFileData] = useState("");
@@ -183,6 +381,10 @@ export default function AdminDashboard({
 
   // Load orders and feedbacks if logged in
   const fetchOrders = async () => {
+    if (onRefreshOrders) {
+      onRefreshOrders();
+      return;
+    }
     setLoadingOrders(true);
     try {
       const res = await fetch("/api/admin/orders", {
@@ -190,7 +392,7 @@ export default function AdminDashboard({
       });
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
+        setLocalOrders(data);
       }
     } catch (err) {
       console.error("Fetch orders err", err);
@@ -200,6 +402,10 @@ export default function AdminDashboard({
   };
 
   const fetchFeedbacks = async () => {
+    if (onRefreshFeedbacks) {
+      onRefreshFeedbacks();
+      return;
+    }
     setLoadingFeedbacks(true);
     try {
       const res = await fetch("/api/admin/feedbacks", {
@@ -207,7 +413,7 @@ export default function AdminDashboard({
       });
       if (res.ok) {
         const data = await res.json();
-        setFeedbacks(data);
+        setLocalFeedbacks(data);
       }
     } catch (err) {
       console.error("Fetch feedbacks err", err);
@@ -235,6 +441,58 @@ export default function AdminDashboard({
       console.error("Fetch admins key err:", err);
     } finally {
       setLoadingAdmins(false);
+    }
+  };
+
+  const fetchBankSettings = async () => {
+    try {
+      const res = await fetch("/api/bank");
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setBankName(data.bankName || "MB Bank");
+          setAccountNumber(data.accountNumber || "");
+          setAccountHolder(data.accountHolder || "");
+          setMemoTemplate(data.memoTemplate || "EDUSHOP {orderId}");
+          setIsBankEnabled(!!data.isEnabled);
+        }
+      }
+    } catch (err) {
+      console.error("Lỗi nạp cấu hình ngân hàng:", err);
+    }
+  };
+
+  const handleSaveBankSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBankLoading(true);
+    setBankError("");
+    setBankSuccess("");
+    try {
+      const res = await fetch("/api/admin/bank", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer admin-secret-token`
+        },
+        body: JSON.stringify({
+          bankName,
+          accountNumber,
+          accountHolder,
+          memoTemplate,
+          isEnabled: isBankEnabled
+        })
+      });
+      if (res.ok) {
+        setBankSuccess("🎉 Đã cập nhật và liên kết thông tin ngân hàng thành công!");
+        showToast("✓ Đã lưu cấu hình ngân hàng!");
+      } else {
+        const errData = await res.json();
+        setBankError(errData.error || "Không thể cập nhật cấu hình ngân hàng.");
+      }
+    } catch (err) {
+      setBankError("Lỗi kết nối máy chủ khi lưu cấu hình ngân hàng.");
+    } finally {
+      setBankLoading(false);
     }
   };
 
@@ -317,6 +575,7 @@ export default function AdminDashboard({
         fetchFeedbacks();
         fetchAdminAccounts();
         fetchDbStatus();
+        fetchBankSettings();
       };
       
       syncAndLoad();
@@ -714,74 +973,6 @@ export default function AdminDashboard({
           <span className="text-sm font-medium">{toastMessage}</span>
         </div>
       )}
-
-      {/* Admin Panel Header */}
-      <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-[32px] flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden shadow-xl border border-slate-800">
-        <div className="absolute right-0 bottom-0 w-80 h-80 bg-indigo-500 rounded-full filter blur-3xl opacity-10"></div>
-        <div className="space-y-1 relative z-10">
-          <div className="flex flex-wrap gap-2 items-center mb-1">
-            <div className="inline-flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-[11px] font-bold border border-indigo-500/20">
-              <ShieldCheck className="w-3.5 h-3.5" /> Giao diện điều hành hệ thống
-            </div>
-            
-            {dbStatus && (
-              dbStatus.connected ? (
-                <div className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[11px] font-bold border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute mr-1"></span>
-                  Supabase: Đã liên kết thực dạt
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full text-[11px] font-bold border border-amber-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 animate-pulse"></span>
-                  Dùng Cơ sở dữ liệu Dự phòng (Local JSON)
-                </div>
-              )
-            )}
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-black">Hệ Thống Phân Quyền Quản Trị Chặt Chẽ</h2>
-          <p className="text-slate-400 text-xs font-medium">Thầy cô Admin: {username || "admin"} • Cấu hình trực tuyến thời gian thực các học liệu GDPT 2018.</p>
-        </div>
-      </div>
-
-      {/* Tabs list */}
-      <div className="flex flex-wrap border-b border-slate-200 gap-2 pb-2">
-        <button
-          onClick={() => setSubTab("dashboard")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${subTab === "dashboard" ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-        >
-          📊 Tổng quan doanh thu
-        </button>
-        <button
-          onClick={() => setSubTab("products")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${subTab === "products" ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-        >
-          📂 Kho học liệu & Sáng kiến ({products.length + initiatives.length})
-        </button>
-        <button
-          onClick={() => setSubTab("orders")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${subTab === "orders" ? "bg-slate-950 text-white flex items-center gap-1.5" : "text-slate-500 hover:bg-slate-100 flex items-center gap-1.5"}`}
-        >
-          🛒 Duyệt hóa đơn đơn hàng
-          {orders.filter(o => o.status === "pending").length > 0 && (
-            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
-              {orders.filter(o => o.status === "pending").length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setSubTab("feedbacks")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${subTab === "feedbacks" ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-        >
-          💬 Góp ý & Phản hồi ({feedbacks.length})
-        </button>
-        <button
-          onClick={() => setSubTab("settings")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${subTab === "settings" ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-        >
-          🔒 Bảo mật & Đổi mật khẩu
-        </button>
-      </div>
 
       {/* TAB CONTENT: GENERAL OVERVIEW */}
       {subTab === "dashboard" && (
@@ -1707,6 +1898,21 @@ WHERE id = '${finalId}';`;
                     </p>
                   </div>
 
+                  {/* Buyer bank detail area */}
+                  {(order.buyerBankName || order.buyerBankAccount || order.buyerBankAccountName) && (
+                    <div className="bg-indigo-50/30 border border-indigo-100/50 p-3 rounded-2xl space-y-1.5">
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-wider flex items-center gap-1">
+                        <CreditCard className="w-3.5 h-3.5" />
+                        Tài khoản ngân hàng của người mua:
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700 font-semibold text-[11px]">
+                        <p>Ngân hàng: <span className="font-extrabold text-slate-800">{order.buyerBankName || "Chưa cung cấp"}</span></p>
+                        <p>Số tài khoản: <span className="font-extrabold text-indigo-700 select-all">{order.buyerBankAccount || "Chưa cung cấp"}</span></p>
+                        <p>Chủ tài khoản: <span className="font-extrabold text-slate-800 uppercase">{order.buyerBankAccountName || "Chưa cung cấp"}</span></p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Purchased resources table */}
                   <div className="space-y-2">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Danh sách học liệu mua quyền tải:</p>
@@ -1806,260 +2012,873 @@ WHERE id = '${finalId}';`;
         </div>
       )}
 
-      {/* TAB CONTENT: SECURITY & PASSWORD CHANGE */}
+      {/* ==================== SECURITY & SETTINGS MODAL ==================== */}
       {subTab === "settings" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start animate-fade-in">
-          
-          {/* LEFT COLUMN: CHANGE PASSWORD FOR CURRENT USER */}
-          <div className="bg-white p-6 sm:p-8 rounded-[32px] border border-slate-100 shadow-sm space-y-6 text-left">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                <Lock className="w-5 h-5 text-indigo-600" /> Đổi mật khẩu tài khoản Quản trị
-              </h3>
-              <p className="text-slate-400 text-xs font-semibold">Thầy cô quản trị viên có quyền hạn tối cao thay đổi mật khẩu truy cập hệ thống để bảo vệ cơ sở dữ liệu.</p>
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-4xl w-full shadow-2xl p-6 sm:p-8 relative overflow-hidden flex flex-col max-h-[90vh] animate-scale-up text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6 shrink-0">
+              <div className="flex items-center gap-2">
+                <Shield className="w-6 h-6 text-indigo-600 animate-pulse" />
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg">Cổng Bảo Mật & Hệ Thống</h3>
+                  <p className="text-xs text-slate-400 font-semibold">Cấu hình bảo mật, tài khoản quản trị và tài khoản ngân hàng liên kết thanh toán.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSubTab("dashboard")} 
+                className="p-1.5 hover:bg-slate-100 rounded-full transition-all cursor-pointer text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
-            {pwError && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-100 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4.5 h-4.5 shrink-0" />
-                <span>{pwError}</span>
-              </div>
-            )}
-
-            {pwSuccess && (
-              <div className="bg-green-50 text-emerald-700 p-4 rounded-2xl border border-green-150 text-xs font-semibold flex items-center gap-2">
-                <CheckCircle className="w-4.5 h-4.5 shrink-0" />
-                <span>{pwSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest block">Chọn tài khoản Quản trị cần đổi mật khẩu</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
-                  <select
-                    value={changePasswordUsername}
-                    onChange={(e) => setChangePasswordUsername(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer text-slate-800"
-                  >
-                    {adminAccounts.length > 0 ? (
-                      adminAccounts.map((account, idx) => (
-                        <option key={idx} value={account.username}>
-                          {account.username} (Mật khẩu cũ: {account.password})
-                        </option>
-                      ))
-                    ) : (
-                      <option value="admin">admin</option>
-                    )}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Mật khẩu hiện tại</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
-                  <input 
-                    type={showCurrentPassword ? "text" : "password"} 
-                    required
-                    placeholder="Nhập mật khẩu hiện tại"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-105 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
-                  >
-                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Mật khẩu mới</label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
-                    <input 
-                      type={showNewPassword ? "text" : "password"} 
-                      required
-                      placeholder="Mật khẩu mới"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-105 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
-                    >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Xác nhận mật khẩu mới</label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
-                    <input 
-                      type={showConfirmPassword ? "text" : "password"} 
-                      required
-                      placeholder="Nhập lại mật khẩu mới"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-105 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {/* Modal Internal Navigation Sub-Tabs */}
+            <div className="flex gap-2 border-b border-slate-100 pb-3 mb-6 shrink-0 overflow-x-auto">
+              <button
+                onClick={() => setSecurityActiveTab("password")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  securityActiveTab === "password"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Lock className="w-4 h-4" /> Đổi mật khẩu
+              </button>
 
               <button
-                type="submit"
-                disabled={pwLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                onClick={() => setSecurityActiveTab("accounts")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  securityActiveTab === "accounts"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                }`}
               >
-                {pwLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật bảo mật...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" /> Xác nhận Thay đổi Mật khẩu
-                  </>
-                )}
+                <UserPlus className="w-4 h-4" /> Cấp quyền tài khoản
               </button>
-            </form>
-          </div>
 
-          {/* RIGHT COLUMN: MULTI-ADMIN ACCOUNTS CREATION & MANAGEMENT */}
-          <div className="bg-white p-6 sm:p-8 rounded-[32px] border border-slate-100 shadow-sm space-y-6 text-left">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                <User className="w-5 h-5 text-emerald-600" /> Cấp thêm tài khoản Quản trị
-              </h3>
-              <p className="text-slate-400 text-xs font-semibold">Cấp thêm quyền hạn quản lý cho thầy cô đồng nghiệp truy cập điều hành trang học liệu.</p>
+              <button
+                onClick={() => setSecurityActiveTab("bank")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  securityActiveTab === "bank"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <CreditCard className="w-4 h-4" /> Tài khoản ngân hàng
+              </button>
             </div>
 
-            {addAdminError && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-100 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4.5 h-4.5 shrink-0" />
-                <span>{addAdminError}</span>
-              </div>
-            )}
-
-            {addAdminSuccess && (
-              <div className="bg-green-50 text-emerald-700 p-4 rounded-2xl border border-green-150 text-xs font-semibold flex items-center gap-2">
-                <CheckCircle className="w-4.5 h-4.5 shrink-0" />
-                <span>{addAdminSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleCreateAdminAccount} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tên tài khoản mới</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="ví dụ: admin_tin_hoc"
-                      value={newAdminUser}
-                      onChange={(e) => setNewAdminUser(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-105 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+            {/* Scrollable Modal Content */}
+            <div className="flex-grow overflow-y-auto pr-1 space-y-6 min-h-0">
+              
+              {/* Tab 1: Đổi mật khẩu */}
+              {securityActiveTab === "password" && (
+                <div className="space-y-6 animate-fade-in text-left">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-indigo-600" /> Đổi mật khẩu tài khoản Quản trị
+                    </h3>
+                    <p className="text-slate-400 text-xs font-semibold">Thay đổi mật khẩu tài khoản Admin để tăng tính bảo mật cho hệ thống.</p>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Mật khẩu tài khoản</label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
-                    <input 
-                      type={showNewAdminPass ? "text" : "password"} 
-                      required
-                      placeholder="Mật khẩu mới"
-                      value={newAdminPass}
-                      onChange={(e) => setNewAdminPass(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-105 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewAdminPass(!showNewAdminPass)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
-                    >
-                      {showNewAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
+                  {pwError && (
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-105 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4.5 h-4.5 shrink-0" />
+                      <span>{pwError}</span>
+                    </div>
+                  )}
 
-              <button
-                type="submit"
-                disabled={addAdminLoading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
-              >
-                {addAdminLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cấp quyền...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" /> Tạo & Cấp quyền tài khoản Admin
-                  </>
-                )}
-              </button>
-            </form>
+                  {pwSuccess && (
+                    <div className="bg-green-50 text-emerald-700 p-4 rounded-2xl border border-green-150 text-xs font-semibold flex items-center gap-2">
+                      <CheckCircle className="w-4.5 h-4.5 shrink-0" />
+                      <span>{pwSuccess}</span>
+                    </div>
+                  )}
 
-            {/* List of existing administrators */}
-            <div className="mt-6 pt-6 border-t border-slate-150 space-y-3">
-              <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider block">
-                📋 Danh sách Quản trị viên ({adminAccounts.length})
-              </h4>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {loadingAdmins ? (
-                  <div className="flex justify-center p-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-                  </div>
-                ) : adminAccounts.length > 0 ? (
-                  adminAccounts.map((account, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs font-bold">
-                      <div className="space-y-0.5">
-                        <p className="text-slate-800">{account.username}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">Mật khẩu: {account.password}</p>
+                  <form onSubmit={handleChangePassword} className="space-y-4 max-w-xl">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest block">Chọn tài khoản Quản trị cần đổi mật khẩu</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                        <select
+                          value={changePasswordUsername}
+                          onChange={(e) => setChangePasswordUsername(e.target.value)}
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer text-slate-800"
+                        >
+                          {adminAccounts.length > 0 ? (
+                            adminAccounts.map((account, idx) => (
+                              <option key={idx} value={account.username}>
+                                {account.username} (Mật khẩu cũ: {account.password})
+                              </option>
+                            ))
+                          ) : (
+                            <option value="admin">admin</option>
+                          )}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                          <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Mật khẩu hiện tại</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
+                        <input 
+                          type={showCurrentPassword ? "text" : "password"} 
+                          required
+                          placeholder="Nhập mật khẩu hiện tại"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                        >
+                          {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Mật khẩu mới</label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
+                          <input 
+                            type={showNewPassword ? "text" : "password"} 
+                            required
+                            placeholder="Mật khẩu mới"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                          >
+                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Xác nhận mật khẩu mới</label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
+                          <input 
+                            type={showConfirmPassword ? "text" : "password"} 
+                            required
+                            placeholder="Nhập lại mật khẩu mới"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                          >
+                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={pwLoading}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-6 py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                    >
+                      {pwLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật bảo mật...
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-4 h-4" /> Xác nhận Thay đổi Mật khẩu
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Tab 2: Cấp quyền tài khoản */}
+              {securityActiveTab === "accounts" && (
+                <div className="space-y-6 animate-fade-in text-left">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                      <UserPlus className="w-5 h-5 text-emerald-600" /> Cấp thêm tài khoản Quản trị
+                    </h3>
+                    <p className="text-slate-400 text-xs font-semibold">Cấp thêm quyền hạn quản lý cho thầy cô đồng nghiệp truy cập điều hành trang học liệu.</p>
+                  </div>
+
+                  {addAdminError && (
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-105 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4.5 h-4.5 shrink-0" />
+                      <span>{addAdminError}</span>
+                    </div>
+                  )}
+
+                  {addAdminSuccess && (
+                    <div className="bg-green-50 text-emerald-700 p-4 rounded-2xl border border-green-150 text-xs font-semibold flex items-center gap-2">
+                      <CheckCircle className="w-4.5 h-4.5 shrink-0" />
+                      <span>{addAdminSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <form onSubmit={handleCreateAdminAccount} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tên tài khoản mới</label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="ví dụ: admin_tin_hoc"
+                            value={newAdminUser}
+                            onChange={(e) => setNewAdminUser(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Mật khẩu tài khoản</label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5" />
+                          <input 
+                            type={showNewAdminPass ? "text" : "password"} 
+                            required
+                            placeholder="Mật khẩu tài khoản"
+                            value={newAdminPass}
+                            onChange={(e) => setNewAdminPass(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewAdminPass(!showNewAdminPass)}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                          >
+                            {showNewAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={addAdminLoading}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                      >
+                        {addAdminLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" /> Đang cấp quyền...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4" /> Tạo & Cấp quyền tài khoản Admin
+                          </>
+                        )}
+                      </button>
+                    </form>
+
+                    {/* List of existing administrators */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider block">
+                        📋 Danh sách Quản trị viên ({adminAccounts.length})
+                      </h4>
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {loadingAdmins ? (
+                          <div className="flex justify-center p-4">
+                            <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                          </div>
+                        ) : adminAccounts.length > 0 ? (
+                          adminAccounts.map((account, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100 text-xs font-bold">
+                              <div className="space-y-0.5">
+                                <p className="text-slate-800">{account.username}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">Mật khẩu: {account.password}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAdminAccount(account.username)}
+                                className="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded-lg border border-red-200/50 transition-all cursor-pointer"
+                                title="Xóa tài khoản này"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[10px] text-slate-400 font-medium">Chưa nạp được danh sách tài khoản.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Tài khoản ngân hàng */}
+              {securityActiveTab === "bank" && (
+                <div className="space-y-6 animate-fade-in text-left">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                      <CreditCard className="w-5 h-5 text-indigo-600" /> Liên kết Tài khoản Ngân hàng
+                    </h3>
+                    <p className="text-slate-400 text-xs font-semibold">Cung cấp thông tin tài khoản ngân hàng thụ hưởng để tích hợp thanh toán mã QR VietQR trực tuyến cho các sản phẩm có phí.</p>
+                  </div>
+
+                  {bankError && (
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-105 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4.5 h-4.5 shrink-0" />
+                      <span>{bankError}</span>
+                    </div>
+                  )}
+
+                  {bankSuccess && (
+                    <div className="bg-green-50 text-emerald-700 p-4 rounded-2xl border border-green-150 text-xs font-semibold flex items-center gap-2">
+                      <CheckCircle className="w-4.5 h-4.5 shrink-0" />
+                      <span>{bankSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <form onSubmit={handleSaveBankSettings} className="space-y-4">
+                      
+                      <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div>
+                          <p className="text-xs font-black text-slate-800">Kích hoạt thanh toán Ngân hàng</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Cho phép người mua thanh toán đơn hàng qua chuyển khoản QR</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={isBankEnabled}
+                            onChange={(e) => setIsBankEnabled(e.target.checked)}
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Ngân hàng thụ hưởng</label>
+                        <select
+                          value={bankName}
+                          onChange={(e) => setBankName(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="MB Bank">MB Bank (Ngân hàng Quân Đội)</option>
+                          <option value="Vietcombank">Vietcombank (Ngoại Thương Việt Nam)</option>
+                          <option value="Techcombank">Techcombank (Kỹ Thương)</option>
+                          <option value="Vietinbank">Vietinbank (Công Thương Việt Nam)</option>
+                          <option value="BIDV">BIDV (Đầu Tư và Phát Triển)</option>
+                          <option value="Agribank">Agribank (Nông Nghiệp & PTNT)</option>
+                          <option value="TPBank">TPBank (Tiên Phong)</option>
+                          <option value="VPBank">VPBank (Việt Nam Thịnh Vượng)</option>
+                          <option value="ACB">ACB (Á Châu)</option>
+                          <option value="Sacombank">Sacombank (Sài Gòn Thương Tín)</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Số tài khoản</label>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="Nhập số tài khoản ngân hàng"
+                            value={accountNumber}
+                            onChange={(e) => setAccountNumber(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tên chủ tài khoản (Viết hoa không dấu)</label>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="ví dụ: NGUYEN VAN A"
+                            value={accountHolder}
+                            onChange={(e) => setAccountHolder(e.target.value.toUpperCase())}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Cú pháp nội dung chuyển khoản mặc định</label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="ví dụ: EDUSHOP {orderId}"
+                          value={memoTemplate}
+                          onChange={(e) => setMemoTemplate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <p className="text-[9px] text-slate-400 font-medium">Sử dụng tham số <code className="font-mono text-indigo-600 font-bold">{`{orderId}`}</code> để hệ thống tự điền mã đơn hàng khi giáo viên thanh toán.</p>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={bankLoading}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-6 py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                      >
+                        {bankLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật liên kết...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" /> Lưu cấu hình liên kết ngân hàng
+                          </>
+                        )}
+                      </button>
+                    </form>
+
+                    {/* Preview VietQR block */}
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="border border-slate-250 p-3 bg-white rounded-2xl shadow-sm">
+                        {accountNumber && accountHolder ? (
+                          <img 
+                            src={`https://img.vietqr.io/image/${bankName.replace(/\s+/g, "")}-${accountNumber}-compact.png?amount=50000&addInfo=EDUSHOP_DEMO&accountName=${encodeURIComponent(accountHolder)}`}
+                            alt="VietQR Viet Nam"
+                            className="w-48 h-48 object-contain"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-48 h-48 flex items-center justify-center bg-slate-100 text-slate-400 text-xs font-bold rounded-xl border border-dashed border-slate-300">
+                            Vui lòng nhập Số tài khoản & Tên chủ tài khoản để xem trước mã VietQR
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 ${isBankEnabled ? "bg-green-100 text-green-700 border border-green-200" : "bg-slate-200 text-slate-500"}`}>
+                          {isBankEnabled ? "ĐÃ KÍCH HOẠT THANH TOÁN" : "CHƯA KÍCH HOẠT"}
+                        </span>
+                        <h4 className="font-extrabold text-sm text-slate-800">Mô phỏng VietQR thanh toán</h4>
+                        <p className="text-[11px] text-slate-400 max-w-xs mx-auto mt-1 leading-relaxed">
+                          Hệ thống sẽ tự động sinh mã QR với số tiền và nội dung chuyển khoản tương ứng khi giáo viên mua giáo án/sáng kiến có phí.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== BANNER CONFIGURATION MODAL ==================== */}
+      {showBannerModal && (
+        <div className="fixed inset-0 z-55 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-105 max-w-2xl w-full shadow-2xl p-6 sm:p-8 relative overflow-hidden flex flex-col max-h-[90vh] animate-scale-up text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5 shrink-0">
+              <div className="flex items-center gap-2">
+                <Image className="w-5 h-5 text-indigo-600 animate-pulse" />
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">Cấu hình Banner Trang Chủ</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">Thay đổi hình nền banner, huy hiệu và các tiêu đề động trực tuyến</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBannerModal(false)} 
+                className="bg-slate-100 hover:bg-slate-200 p-2 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-grow overflow-y-auto space-y-6 pr-1 scrollbar-none">
+              
+              {/* Image Banner Section */}
+              <div className="space-y-3 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    🖼️ Hình ảnh nền Banner
+                  </label>
+                  <div className="flex gap-1.5 bg-slate-205 p-0.5 rounded-lg text-[10px] font-black">
+                    <button
+                      type="button"
+                      onClick={() => setBannerBgType("url")}
+                      className={`px-2 py-1 rounded-md transition-all ${bannerBgType === "url" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                    >
+                      Dán Link URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBannerBgType("upload")}
+                      className={`px-2 py-1 rounded-md transition-all ${bannerBgType === "upload" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                    >
+                      Tải lên máy tính
+                    </button>
+                  </div>
+                </div>
+
+                {bannerBgType === "url" ? (
+                  <div className="relative">
+                    <Link className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/... hoặc link ảnh bất kỳ"
+                      value={bannerBgUrl}
+                      onChange={(e) => setBannerBgUrl(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-grow border border-indigo-200 border-dashed bg-white hover:bg-indigo-50/30 transition-all rounded-xl p-3 text-center flex flex-col items-center justify-center cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              if (event.target?.result) {
+                                setBannerBgUrl(event.target.result as string);
+                                showToast(`✓ Đã nạp ảnh nền: ${file.name}`);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <UploadCloud className="w-6 h-6 text-indigo-500 mb-1 animate-bounce" />
+                      <p className="text-[10px] font-black text-indigo-950">Nhấp hoặc kéo thả ảnh nền vào đây</p>
+                      <p className="text-[8px] text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, WEBP</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview Banner Background */}
+                {bannerBgUrl && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Xem trước ảnh nền:</span>
+                    <div className="relative h-24 rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100">
+                      <img 
+                        src={bannerBgUrl} 
+                        alt="Banner Preview" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800';
+                        }}
+                      />
                       <button
                         type="button"
-                        onClick={() => handleDeleteAdminAccount(account.username)}
-                        className="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded-lg border border-red-200/50 transition-all cursor-pointer"
-                        title="Xóa tài khoản này"
+                        onClick={() => setBannerBgUrl("")}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-all cursor-pointer"
+                        title="Xóa hình ảnh này"
                       >
-                        <Trash className="w-3.5 h-3.5" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-[10px] text-slate-400 font-medium">Chưa nạp được danh sách tài khoản.</p>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
 
+              {/* Text Fields Section */}
+              <div className="space-y-4">
+                {/* Badge text */}
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    🎗️ Văn bản Huy hiệu phía trên
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Hệ thống tiên phong tích hợp AI số hóa giáo dục"
+                    value={bannerBadge}
+                    onChange={(e) => setBannerBadge(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Title 1 */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      ✍️ Tiêu đề phần 1 (Chữ Trắng - Khung số 1)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Giải Pháp Học Liệu Số"
+                      value={bannerTitle1}
+                      onChange={(e) => setBannerTitle1(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Title 2 */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                      ✨ Tiêu đề phần 2 (Chữ Gradient - Khung số 1)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Thời Đại Công Nghệ Giáo Dục 4.0"
+                      value={bannerTitle2}
+                      onChange={(e) => setBannerTitle2(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Description - Khung số 2 */}
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                    📝 Nội dung chi tiết (Khung số 2 - Hỗ trợ các thẻ HTML như &lt;strong&gt;)
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Ví dụ: Cung cấp Giáo án Word, Slide điện tử PPT, Video thực hành, Phiếu bài tập và Ngân hàng đề thi chuẩn kịch bản GDPT 2018..."
+                    value={bannerDesc}
+                    onChange={(e) => setBannerDesc(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans"
+                  />
+                  <p className="text-[9px] text-slate-400 font-medium">💡 Thầy cô có thể bọc văn bản bằng thẻ <code>&lt;strong&gt;chữ in đậm&lt;/strong&gt;</code> để làm nổi bật văn bản trên trang chủ.</p>
+                </div>
+              </div>
+
+              {/* SQL script notice if using Supabase */}
+              {dbStatus?.connected && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-1.5 text-amber-800 font-extrabold text-xs">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Lưu ý đồng bộ hóa Supabase</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 font-semibold leading-relaxed">
+                    Để lưu cấu hình banner này vĩnh viễn trên dịch vụ đám mây Supabase (không bị đặt lại khi máy chủ khởi động lại hoặc redeploy), vui lòng chắc chắn rằng bạn đã chạy câu lệnh SQL này trong <strong>Supabase SQL Editor</strong>:
+                  </p>
+                  <div className="bg-slate-900 text-slate-300 p-2.5 rounded-xl font-mono text-[9px] overflow-x-auto relative select-all cursor-pointer border border-slate-800">
+                    {`CREATE TABLE IF NOT EXISTS banner_settings (
+  id TEXT PRIMARY KEY DEFAULT 'current',
+  background_image TEXT,
+  badge_text TEXT,
+  title_1 TEXT,
+  title_2 TEXT,
+  description TEXT,
+  admin_panel1_title TEXT,
+  admin_panel1_desc TEXT,
+  admin_panel2_title TEXT,
+  admin_panel2_desc TEXT,
+  admin_panel3_title TEXT,
+  promo_badge TEXT,
+  promo_title1 TEXT,
+  promo_title2 TEXT,
+  promo_desc TEXT,
+  promo_foot TEXT,
+  promo_btn TEXT,
+  promo_enabled BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Nếu bảng đã tồn tại từ trước và thiếu các cột mới, vui lòng chạy các lệnh ALTER TABLE sau:
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel1_title TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel1_desc TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel2_title TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel2_desc TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS admin_panel3_title TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_badge TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_title1 TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_title2 TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_desc TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_foot TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_btn TEXT;
+ALTER TABLE banner_settings ADD COLUMN IF NOT EXISTS promo_enabled BOOLEAN DEFAULT false;
+
+ALTER TABLE banner_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access to banner_settings" ON banner_settings FOR SELECT USING (true);
+CREATE POLICY "Allow public full access to banner_settings" ON banner_settings FOR ALL USING (true) WITH CHECK (true);`}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-4 border-t border-slate-100 mt-5 shrink-0 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBannerModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBanner}
+                disabled={savingBanner}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {savingBanner ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Lưu cấu hình Banner
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+      {/* --- PANEL 2 EDIT MODAL --- */}
+      {showPanel2Modal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-lg w-full shadow-2xl p-6 relative overflow-hidden flex flex-col animate-scale-up text-left">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-indigo-600 animate-pulse" />
+                <h3 className="font-black text-slate-900 text-sm">Chỉnh sửa Bảng Điều Hành</h3>
+              </div>
+              <button 
+                onClick={() => setShowPanel2Modal(false)} 
+                className="bg-slate-100 hover:bg-slate-200 p-1.5 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  Tiêu đề chính
+                </label>
+                <input
+                  type="text"
+                  value={panel2Title}
+                  onChange={(e) => setPanel2Title(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  Mô tả chi tiết
+                </label>
+                <textarea
+                  rows={4}
+                  value={panel2Desc}
+                  onChange={(e) => setPanel2Desc(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPanel2Modal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePanel2}
+                disabled={savingPanel2}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {savingPanel2 ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Lưu thay đổi
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* --- PANEL 3 EDIT MODAL --- */}
+      {showPanel3Modal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-lg w-full shadow-2xl p-6 relative overflow-hidden flex flex-col animate-scale-up text-left">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-indigo-600 animate-pulse" />
+                <h3 className="font-black text-slate-900 text-sm">Chỉnh sửa Tiêu Đề Phân Khu</h3>
+              </div>
+              <button 
+                onClick={() => setShowPanel3Modal(false)} 
+                className="bg-slate-100 hover:bg-slate-200 p-1.5 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  Tiêu đề phân khu quản lý
+                </label>
+                <input
+                  type="text"
+                  value={panel3Title}
+                  onChange={(e) => setPanel3Title(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPanel3Modal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePanel3}
+                disabled={savingPanel3}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {savingPanel3 ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Lưu thay đổi
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 
